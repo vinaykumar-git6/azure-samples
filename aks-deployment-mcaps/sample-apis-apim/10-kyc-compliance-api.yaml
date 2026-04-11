@@ -1,0 +1,996 @@
+openapi: 3.0.3
+info:
+  title: KYC & Compliance API
+  description: |
+    ## Overview
+    The **KYC & Compliance API** handles Know Your Customer (KYC) verification,
+    document management, compliance screening, and regulatory reporting. It ensures
+    adherence to UAE Central Bank regulations, FATF recommendations, and AML/CFT requirements.
+
+    ## KYC Lifecycle
+    1. **Initial KYC** — Customer onboarding identity verification
+    2. **Periodic Review** — Scheduled KYC renewal (every 1-3 years based on risk)
+    3. **Event-Driven Review** — Triggered by high-risk transactions or changes
+    4. **Enhanced Due Diligence (EDD)** — Additional checks for high-risk customers
+
+    ## Compliance Framework
+    | Regulation | Description |
+    |-----------|-------------|
+    | UAE Central Bank AML/CFT | Anti-Money Laundering & Counter Terrorism Financing |
+    | FATCA | Foreign Account Tax Compliance Act (US persons) |
+    | CRS | Common Reporting Standard (OECD) |
+    | FATF | Financial Action Task Force recommendations |
+    | UAE Sanctions List | Local sanctions screening |
+    | OFAC SDN | US sanctions screening |
+    | EU Sanctions | European Union sanctions screening |
+    | UN Sanctions | United Nations sanctions screening |
+  version: 1.0.0
+  contact:
+    name: Banking API Support
+    email: api-support@bank.com
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+servers:
+  - url: https://api.bank.com/v1
+    description: Production
+  - url: https://sandbox.api.bank.com/v1
+    description: Sandbox
+
+tags:
+  - name: KYC Status
+    description: Check and manage KYC verification status.
+  - name: Document Management
+    description: Upload and manage identity and compliance documents.
+  - name: Compliance Screening
+    description: Sanctions screening and risk assessment.
+  - name: FATCA/CRS
+    description: Tax compliance reporting status.
+
+security:
+  - BearerAuth: []
+
+paths:
+  /kyc/status:
+    get:
+      tags:
+        - KYC Status
+      summary: Get KYC status
+      description: |
+        Retrieves the current KYC verification status of the authenticated customer
+        including verification level, risk rating, document status, and next review date.
+      operationId: getKycStatus
+      responses:
+        '200':
+          description: KYC status retrieved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KycStatusResponse'
+              example:
+                data:
+                  customerId: "CUST-2026-001234"
+                  kycStatus: "VERIFIED"
+                  kycLevel: "FULL"
+                  kycLevelDescription: "Full KYC with in-person verification completed."
+                  verificationDate: "2025-03-01"
+                  expiryDate: "2027-03-01"
+                  nextReviewDate: "2027-02-01"
+                  daysUntilExpiry: 380
+                  riskRating: "LOW"
+                  riskScore: 15
+                  riskFactors:
+                    - factor: "COUNTRY_OF_ORIGIN"
+                      rating: "LOW"
+                      details: "India - Standard risk country"
+                    - factor: "OCCUPATION"
+                      rating: "LOW"
+                      details: "Technology sector - Low risk industry"
+                    - factor: "TRANSACTION_PATTERN"
+                      rating: "LOW"
+                      details: "Regular salary credits, consistent spending pattern"
+                    - factor: "PRODUCT_USAGE"
+                      rating: "LOW"
+                      details: "Standard retail banking products"
+                  pepStatus: "NOT_PEP"
+                  pepDescription: "Not a Politically Exposed Person"
+                  sanctionsScreening:
+                    lastScreenedDate: "2026-02-14"
+                    result: "CLEAR"
+                    listsScreened: ["UAE_SANCTIONS", "OFAC_SDN", "EU_SANCTIONS", "UN_SANCTIONS"]
+                  documents:
+                    - documentType: "EMIRATES_ID"
+                      status: "VERIFIED"
+                      verifiedDate: "2025-03-01"
+                      expiryDate: "2027-01-14"
+                      daysUntilExpiry: 335
+                    - documentType: "PASSPORT"
+                      status: "VERIFIED"
+                      verifiedDate: "2025-03-01"
+                      expiryDate: "2032-03-09"
+                      daysUntilExpiry: 2214
+                    - documentType: "VISA"
+                      status: "VERIFIED"
+                      verifiedDate: "2025-03-01"
+                      expiryDate: "2027-02-15"
+                      daysUntilExpiry: 367
+                    - documentType: "PROOF_OF_ADDRESS"
+                      status: "VERIFIED"
+                      verifiedDate: "2025-03-01"
+                      expiryDate: "2026-03-01"
+                      daysUntilExpiry: 15
+                      alert: "Document expiring soon. Please upload a recent utility bill or bank statement."
+                    - documentType: "SALARY_CERTIFICATE"
+                      status: "VERIFIED"
+                      verifiedDate: "2025-03-01"
+                      expiryDate: "2026-03-01"
+                      daysUntilExpiry: 15
+                  overallComplianceStatus: "COMPLIANT"
+                  pendingActions: []
+
+  /kyc/initiate-review:
+    post:
+      tags:
+        - KYC Status
+      summary: Initiate KYC review
+      description: |
+        Initiates a KYC review process. This can be triggered by the customer for
+        proactive renewal or by the system for periodic/event-driven reviews.
+        Returns the list of required documents and steps.
+      operationId: initiateKycReview
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reviewType
+              properties:
+                reviewType:
+                  type: string
+                  enum: [PERIODIC_RENEWAL, DOCUMENT_UPDATE, UPGRADE_KYC_LEVEL, ADDRESS_CHANGE, EMPLOYMENT_CHANGE]
+                  description: Reason for initiating the review.
+                notes:
+                  type: string
+                  maxLength: 500
+            example:
+              reviewType: "DOCUMENT_UPDATE"
+              notes: "Updating proof of address with latest DEWA bill"
+      responses:
+        '201':
+          description: KYC review initiated.
+          content:
+            application/json:
+              example:
+                data:
+                  reviewId: "KYC-REV-2026-001234"
+                  status: "INITIATED"
+                  reviewType: "DOCUMENT_UPDATE"
+                  requiredDocuments:
+                    - documentType: "PROOF_OF_ADDRESS"
+                      description: "Recent utility bill, bank statement, or tenancy contract (not older than 3 months)"
+                      acceptedFormats: ["PDF", "JPEG", "PNG"]
+                      maxFileSizeMb: 10
+                      required: true
+                  requiredSteps:
+                    - step: 1
+                      action: "UPLOAD_DOCUMENTS"
+                      description: "Upload the required documents"
+                      status: "PENDING"
+                    - step: 2
+                      action: "DOCUMENT_VERIFICATION"
+                      description: "Bank verifies uploaded documents"
+                      status: "PENDING"
+                      estimatedDays: 1
+                    - step: 3
+                      action: "REVIEW_COMPLETE"
+                      description: "KYC review completed"
+                      status: "PENDING"
+                  estimatedCompletionDays: 2
+                  createdAt: "2026-02-14T17:30:00Z"
+                  message: "KYC review initiated. Please upload the required documents."
+
+  /kyc/documents:
+    get:
+      tags:
+        - Document Management
+      summary: List KYC documents
+      description: |
+        Retrieves all KYC documents on file for the customer, including their
+        verification status, validity period, and any required renewals.
+      operationId: listKycDocuments
+      responses:
+        '200':
+          description: Documents retrieved.
+          content:
+            application/json:
+              example:
+                data:
+                  - documentId: "DOC-2026-001"
+                    documentType: "EMIRATES_ID"
+                    documentCategory: "IDENTITY"
+                    fileName: "emirates_id_front_back.pdf"
+                    fileSize: "2.1 MB"
+                    mimeType: "application/pdf"
+                    status: "VERIFIED"
+                    uploadedAt: "2025-03-01T09:00:00Z"
+                    verifiedAt: "2025-03-01T10:30:00Z"
+                    verifiedBy: "AUTOMATED"
+                    expiryDate: "2027-01-14"
+                    metadata:
+                      documentNumber: "784-****-*****-1"
+                      issueDate: "2024-01-15"
+                      issuingAuthority: "ICA - Federal Authority for Identity, Citizenship, Customs & Port Security"
+                  - documentId: "DOC-2026-002"
+                    documentType: "PASSPORT"
+                    documentCategory: "IDENTITY"
+                    fileName: "passport_scan.pdf"
+                    fileSize: "3.5 MB"
+                    mimeType: "application/pdf"
+                    status: "VERIFIED"
+                    uploadedAt: "2025-03-01T09:05:00Z"
+                    verifiedAt: "2025-03-01T10:35:00Z"
+                    verifiedBy: "AUTOMATED"
+                    expiryDate: "2032-03-09"
+                    metadata:
+                      documentNumber: "T****5678"
+                      nationality: "Indian"
+                      issueDate: "2022-03-10"
+                  - documentId: "DOC-2026-003"
+                    documentType: "PROOF_OF_ADDRESS"
+                    documentCategory: "ADDRESS"
+                    fileName: "dewa_bill_jan2025.pdf"
+                    fileSize: "1.2 MB"
+                    mimeType: "application/pdf"
+                    status: "EXPIRING_SOON"
+                    statusMessage: "Document is about to expire. Please upload a recent proof of address."
+                    uploadedAt: "2025-03-01T09:10:00Z"
+                    verifiedAt: "2025-03-01T11:00:00Z"
+                    verifiedBy: "MANUAL"
+                    expiryDate: "2026-03-01"
+
+    post:
+      tags:
+        - Document Management
+      summary: Upload KYC document
+      description: |
+        Uploads a KYC document for verification. Supports PDF, JPEG, and PNG formats.
+        Maximum file size is 10 MB per document.
+
+        For identity documents (Emirates ID, Passport), OCR extraction is performed
+        automatically and the extracted data is verified against bank records.
+      operationId: uploadKycDocument
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - documentType
+                - file
+              properties:
+                documentType:
+                  type: string
+                  description: Type of document being uploaded.
+                  enum: [EMIRATES_ID, PASSPORT, VISA, PROOF_OF_ADDRESS, SALARY_CERTIFICATE, TRADE_LICENSE, MOA, BANK_STATEMENT, TAX_RETURN, SELFIE, OTHER]
+                file:
+                  type: string
+                  format: binary
+                  description: The document file (PDF, JPEG, PNG). Max 10 MB.
+                reviewId:
+                  type: string
+                  description: Optional review ID if uploading as part of a KYC review.
+                description:
+                  type: string
+                  description: Optional description of the document.
+                  maxLength: 256
+      responses:
+        '201':
+          description: Document uploaded successfully.
+          content:
+            application/json:
+              example:
+                data:
+                  documentId: "DOC-2026-004"
+                  documentType: "PROOF_OF_ADDRESS"
+                  fileName: "dewa_bill_feb2026.pdf"
+                  fileSize: "1.4 MB"
+                  status: "UPLOADED"
+                  ocrExtracted: false
+                  verificationMethod: "MANUAL"
+                  estimatedVerificationTime: "Within 24 hours"
+                  uploadedAt: "2026-02-14T17:45:00Z"
+                  message: "Document uploaded successfully. Verification will be completed within 24 hours."
+        '400':
+          description: Invalid file format or size exceeded.
+        '413':
+          description: File size exceeds 10 MB limit.
+
+  /compliance/screening:
+    post:
+      tags:
+        - Compliance Screening
+      summary: Run compliance screening
+      description: |
+        Performs real-time compliance screening against global sanctions lists,
+        PEP databases, and adverse media sources. Used during onboarding,
+        beneficiary registration, and periodic reviews.
+
+        **Note**: This endpoint is typically used by internal systems. Customer-facing
+        results are sanitized to avoid disclosing screening methodology.
+      operationId: runComplianceScreening
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScreeningRequest'
+            example:
+              screeningType: "INDIVIDUAL"
+              fullName: "Vinay Kumar"
+              dateOfBirth: "1990-05-15"
+              nationality: "Indian"
+              countryOfResidence: "AE"
+              documentNumber: "784-XXXX-XXXXX-1"
+              documentType: "EMIRATES_ID"
+              purpose: "KYC_REVIEW"
+      responses:
+        '200':
+          description: Screening completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScreeningResponse'
+              example:
+                data:
+                  screeningId: "SCR-2026-0214-001234"
+                  status: "CLEAR"
+                  riskLevel: "LOW"
+                  screenedAt: "2026-02-14T18:00:00Z"
+                  listsScreened:
+                    - listName: "UAE Central Bank Sanctions"
+                      result: "NO_MATCH"
+                      lastUpdated: "2026-02-14"
+                    - listName: "OFAC SDN List"
+                      result: "NO_MATCH"
+                      lastUpdated: "2026-02-13"
+                    - listName: "EU Consolidated Sanctions"
+                      result: "NO_MATCH"
+                      lastUpdated: "2026-02-14"
+                    - listName: "UN Security Council Sanctions"
+                      result: "NO_MATCH"
+                      lastUpdated: "2026-02-12"
+                    - listName: "PEP Database"
+                      result: "NO_MATCH"
+                      lastUpdated: "2026-02-14"
+                    - listName: "Adverse Media"
+                      result: "NO_MATCH"
+                      lastUpdated: "2026-02-14"
+                  pepCheck:
+                    isPep: false
+                    isRca: false
+                    details: "No PEP or Relative/Close Associate matches found."
+                  adverseMedia:
+                    hasAdverseMedia: false
+                    details: "No adverse media matches found."
+                  overallResult: "CLEAR"
+                  validUntil: "2026-03-14"
+                  nextScreeningDue: "2026-05-14"
+
+  /compliance/fatca-crs:
+    get:
+      tags:
+        - FATCA/CRS
+      summary: Get FATCA/CRS status
+      description: |
+        Retrieves the customer's FATCA (Foreign Account Tax Compliance Act) and
+        CRS (Common Reporting Standard) compliance status including self-certification
+        details, reportable jurisdictions, and TIN information.
+      operationId: getFatcaCrsStatus
+      responses:
+        '200':
+          description: FATCA/CRS status retrieved.
+          content:
+            application/json:
+              example:
+                data:
+                  customerId: "CUST-2026-001234"
+                  fatca:
+                    status: "COMPLIANT"
+                    isUsPerson: false
+                    usIndicia: []
+                    selfCertificationDate: "2025-03-01"
+                    selfCertificationExpiryDate: "2028-03-01"
+                    w8BenStatus: null
+                    w9Status: null
+                  crs:
+                    status: "COMPLIANT"
+                    selfCertificationDate: "2025-03-01"
+                    selfCertificationExpiryDate: "2028-03-01"
+                    taxResidencies:
+                      - country: "IN"
+                        countryName: "India"
+                        tin: "ABCD****1E"
+                        tinType: "PAN"
+                        isPrimary: true
+                    reportableJurisdictions: ["IN"]
+                    reportingPeriod: "2026"
+                    lastReportedDate: "2026-01-31"
+                  overallStatus: "COMPLIANT"
+                  nextActionRequired: null
+                  message: "All tax compliance requirements are met."
+
+    post:
+      tags:
+        - FATCA/CRS
+      summary: Submit FATCA/CRS self-certification
+      description: |
+        Submits or updates the customer's FATCA/CRS self-certification form.
+        Required during onboarding and periodically for renewal.
+      operationId: submitFatcaCrsCertification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FatcaCrsCertificationRequest'
+            example:
+              isUsCitizen: false
+              isUsResident: false
+              isUsTaxPayer: false
+              usGreenCard: false
+              usBirthPlace: false
+              taxResidencies:
+                - country: "IN"
+                  tin: "ABCDE1234F"
+                  tinType: "PAN"
+              noTinReasons: []
+              declaration:
+                certified: true
+                certifiedDate: "2026-02-14"
+                declarationText: "I certify that the information provided is true and correct."
+      responses:
+        '200':
+          description: Self-certification submitted.
+          content:
+            application/json:
+              example:
+                data:
+                  certificationId: "CERT-2026-0214-001"
+                  status: "ACCEPTED"
+                  validFrom: "2026-02-14"
+                  validUntil: "2029-02-14"
+                  fatcaStatus: "COMPLIANT"
+                  crsStatus: "COMPLIANT"
+                  message: "FATCA/CRS self-certification accepted. Valid for 3 years."
+        '400':
+          description: Incomplete or inconsistent certification data.
+
+  /compliance/transaction-monitoring/alerts:
+    get:
+      tags:
+        - Compliance Screening
+      summary: Get transaction monitoring alerts
+      description: |
+        Retrieves compliance alerts generated by the transaction monitoring system.
+        These may require customer action such as providing additional documentation
+        or explanation for unusual transactions.
+
+        **Note**: Only customer-facing alerts are returned. Internal investigation
+        alerts are not exposed through this API.
+      operationId: getTransactionAlerts
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [PENDING_RESPONSE, RESPONDED, RESOLVED, EXPIRED]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Transaction alerts retrieved.
+          content:
+            application/json:
+              example:
+                data:
+                  - alertId: "TMA-2026-001234"
+                    type: "LARGE_TRANSACTION"
+                    status: "PENDING_RESPONSE"
+                    title: "Large Transfer Verification Required"
+                    description: "A large international transfer of AED 45,000 to a new beneficiary requires additional verification."
+                    referenceTransactionId: "TXN-2026-0210-INT001"
+                    requiredAction: "Please provide the purpose of this transfer and supporting documentation."
+                    requiredDocuments:
+                      - documentType: "SUPPORTING_DOCUMENT"
+                        description: "Invoice, contract, or other document supporting the purpose of the transfer"
+                    responseDeadline: "2026-02-17T23:59:59Z"
+                    daysRemaining: 3
+                    consequenceOfNonResponse: "The transaction may be reversed if no response is received by the deadline."
+                    createdAt: "2026-02-14T12:00:00Z"
+                pagination:
+                  page: 1
+                  pageSize: 10
+                  totalRecords: 1
+                  totalPages: 1
+
+  /compliance/transaction-monitoring/alerts/{alertId}/respond:
+    post:
+      tags:
+        - Compliance Screening
+      summary: Respond to a compliance alert
+      description: |
+        Submits a response to a compliance alert, including explanation and supporting documents.
+      operationId: respondToAlert
+      parameters:
+        - name: alertId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - explanation
+              properties:
+                explanation:
+                  type: string
+                  description: Customer's explanation for the flagged activity.
+                  maxLength: 1000
+                purpose:
+                  type: string
+                  description: Purpose of the transaction.
+                  enum: [BUSINESS_PAYMENT, PROPERTY_PURCHASE, INVESTMENT, FAMILY_SUPPORT, EDUCATION, MEDICAL, SALARY, LOAN_REPAYMENT, OTHER]
+                supportingDocument:
+                  type: string
+                  format: binary
+                  description: Supporting document (invoice, contract, etc.)
+      responses:
+        '200':
+          description: Response submitted.
+          content:
+            application/json:
+              example:
+                data:
+                  alertId: "TMA-2026-001234"
+                  status: "RESPONDED"
+                  respondedAt: "2026-02-14T18:30:00Z"
+                  estimatedReviewTime: "1-2 business days"
+                  message: "Your response has been submitted. Our compliance team will review it within 1-2 business days."
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    KycStatusResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/KycStatus'
+
+    KycStatus:
+      type: object
+      properties:
+        customerId:
+          type: string
+          example: "CUST-2026-001234"
+        kycStatus:
+          type: string
+          description: |
+            Current KYC verification status:
+            - `VERIFIED` — Full KYC completed and valid
+            - `PENDING` — KYC review in progress
+            - `EXPIRED` — KYC has expired, renewal required
+            - `REJECTED` — KYC verification failed
+            - `PARTIAL` — Basic KYC done, full KYC pending
+          enum: [VERIFIED, PENDING, EXPIRED, REJECTED, PARTIAL]
+          example: "VERIFIED"
+        kycLevel:
+          type: string
+          description: |
+            Level of KYC verification:
+            - `BASIC` — Name and ID verification only
+            - `STANDARD` — ID + address + income verification
+            - `FULL` — Standard + in-person/video verification
+            - `ENHANCED` — Full + additional due diligence
+          enum: [BASIC, STANDARD, FULL, ENHANCED]
+          example: "FULL"
+        kycLevelDescription:
+          type: string
+          example: "Full KYC with in-person verification completed."
+        verificationDate:
+          type: string
+          format: date
+          description: Date when current KYC was verified.
+        expiryDate:
+          type: string
+          format: date
+          description: Date when current KYC expires.
+        nextReviewDate:
+          type: string
+          format: date
+          description: Date when the next KYC review is scheduled.
+        daysUntilExpiry:
+          type: integer
+          description: Days remaining until KYC expiry.
+        riskRating:
+          type: string
+          description: Customer risk classification.
+          enum: [LOW, MEDIUM, HIGH, VERY_HIGH]
+          example: "LOW"
+        riskScore:
+          type: integer
+          description: Numerical risk score (0-100, lower is better).
+          minimum: 0
+          maximum: 100
+          example: 15
+        riskFactors:
+          type: array
+          description: Breakdown of risk assessment factors.
+          items:
+            type: object
+            properties:
+              factor:
+                type: string
+                description: Risk factor category.
+              rating:
+                type: string
+                enum: [LOW, MEDIUM, HIGH]
+              details:
+                type: string
+        pepStatus:
+          type: string
+          description: Politically Exposed Person status.
+          enum: [NOT_PEP, PEP, RCA, FORMER_PEP]
+          example: "NOT_PEP"
+        pepDescription:
+          type: string
+        sanctionsScreening:
+          type: object
+          properties:
+            lastScreenedDate:
+              type: string
+              format: date
+            result:
+              type: string
+              enum: [CLEAR, POTENTIAL_MATCH, CONFIRMED_MATCH]
+            listsScreened:
+              type: array
+              items:
+                type: string
+        documents:
+          type: array
+          items:
+            type: object
+            properties:
+              documentType:
+                type: string
+              status:
+                type: string
+                enum: [VERIFIED, EXPIRING_SOON, EXPIRED, PENDING, REJECTED]
+              verifiedDate:
+                type: string
+                format: date
+              expiryDate:
+                type: string
+                format: date
+              daysUntilExpiry:
+                type: integer
+              alert:
+                type: string
+                nullable: true
+        overallComplianceStatus:
+          type: string
+          enum: [COMPLIANT, ACTION_REQUIRED, NON_COMPLIANT]
+        pendingActions:
+          type: array
+          items:
+            type: object
+            properties:
+              action:
+                type: string
+              priority:
+                type: string
+                enum: [LOW, MEDIUM, HIGH, CRITICAL]
+              deadline:
+                type: string
+                format: date
+              description:
+                type: string
+
+    ScreeningRequest:
+      type: object
+      required:
+        - screeningType
+        - fullName
+      properties:
+        screeningType:
+          type: string
+          description: Type of entity being screened.
+          enum: [INDIVIDUAL, CORPORATE]
+          example: "INDIVIDUAL"
+        fullName:
+          type: string
+          description: Full name to screen.
+          example: "Vinay Kumar"
+        dateOfBirth:
+          type: string
+          format: date
+          description: Date of birth (for individuals).
+        nationality:
+          type: string
+          description: Nationality or country of incorporation.
+        countryOfResidence:
+          type: string
+        documentNumber:
+          type: string
+          description: Identity document number.
+        documentType:
+          type: string
+          enum: [EMIRATES_ID, PASSPORT, TRADE_LICENSE, NATIONAL_ID]
+        purpose:
+          type: string
+          description: Purpose of screening.
+          enum: [ONBOARDING, KYC_REVIEW, BENEFICIARY_CHECK, TRANSACTION_SCREENING, PERIODIC_SCREENING]
+
+    ScreeningResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            screeningId:
+              type: string
+            status:
+              type: string
+              enum: [CLEAR, POTENTIAL_MATCH, CONFIRMED_MATCH, PENDING_REVIEW]
+            riskLevel:
+              type: string
+              enum: [LOW, MEDIUM, HIGH, CRITICAL]
+            screenedAt:
+              type: string
+              format: date-time
+            listsScreened:
+              type: array
+              items:
+                type: object
+                properties:
+                  listName:
+                    type: string
+                  result:
+                    type: string
+                    enum: [NO_MATCH, POTENTIAL_MATCH, CONFIRMED_MATCH]
+                  lastUpdated:
+                    type: string
+                    format: date
+            pepCheck:
+              type: object
+              properties:
+                isPep:
+                  type: boolean
+                isRca:
+                  type: boolean
+                  description: Is a Relative or Close Associate of a PEP.
+                details:
+                  type: string
+            adverseMedia:
+              type: object
+              properties:
+                hasAdverseMedia:
+                  type: boolean
+                details:
+                  type: string
+            overallResult:
+              type: string
+              enum: [CLEAR, REVIEW_REQUIRED, BLOCKED]
+            validUntil:
+              type: string
+              format: date
+            nextScreeningDue:
+              type: string
+              format: date
+
+    FatcaCrsCertificationRequest:
+      type: object
+      required:
+        - taxResidencies
+        - declaration
+      properties:
+        isUsCitizen:
+          type: boolean
+          description: Is the customer a US citizen?
+          example: false
+        isUsResident:
+          type: boolean
+          description: Is the customer a US resident/green card holder?
+          example: false
+        isUsTaxPayer:
+          type: boolean
+          description: Does the customer file US tax returns?
+          example: false
+        usGreenCard:
+          type: boolean
+          description: Does the customer hold a US green card?
+          example: false
+        usBirthPlace:
+          type: boolean
+          description: Was the customer born in the US?
+          example: false
+        usSsn:
+          type: string
+          nullable: true
+          description: US Social Security Number (required if US person).
+        taxResidencies:
+          type: array
+          description: List of countries where the customer is tax resident.
+          items:
+            type: object
+            required:
+              - country
+            properties:
+              country:
+                type: string
+                description: ISO 3166-1 alpha-2 country code.
+                example: "IN"
+              tin:
+                type: string
+                description: Tax Identification Number for this country.
+                example: "ABCDE1234F"
+              tinType:
+                type: string
+                description: Type of TIN (country-specific).
+                example: "PAN"
+        noTinReasons:
+          type: array
+          description: Reasons for not providing TIN (if applicable).
+          items:
+            type: object
+            properties:
+              country:
+                type: string
+              reason:
+                type: string
+                enum: [NOT_ISSUED, NOT_REQUIRED, PENDING_ISSUANCE]
+              explanation:
+                type: string
+        declaration:
+          type: object
+          required:
+            - certified
+            - certifiedDate
+          properties:
+            certified:
+              type: boolean
+              description: Customer certifies information is true and correct.
+            certifiedDate:
+              type: string
+              format: date
+            declarationText:
+              type: string
+
+    ErrorResponse:
+      type: object
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        traceId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+  responses:
+    BadRequest:
+      description: The request was invalid or cannot be processed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/bad-request"
+            title: "Bad Request"
+            status: 400
+            detail: "Invalid file format or file size exceeded. Supported formats: PDF, JPG, PNG. Max size: 10MB."
+            traceId: "trace-400-kyc-001"
+            timestamp: "2026-02-14T10:30:00Z"
+            errors:
+              - field: "document"
+                message: "File format .bmp is not supported."
+                code: "UNSUPPORTED_FORMAT"
+    Unauthorized:
+      description: Authentication failed. The access token is missing, expired, or invalid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/unauthorized"
+            title: "Unauthorized"
+            status: 401
+            detail: "The access token has expired. Please obtain a new token."
+            traceId: "trace-401-kyc-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    Forbidden:
+      description: The authenticated user does not have permission to access this resource.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/forbidden"
+            title: "Forbidden"
+            status: 403
+            detail: "You do not have permission to access KYC data for this customer."
+            traceId: "trace-403-kyc-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    NotFound:
+      description: The requested resource was not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/not-found"
+            title: "Resource Not Found"
+            status: 404
+            detail: "The requested KYC record or document was not found."
+            traceId: "trace-404-kyc-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    TooManyRequests:
+      description: Rate limit exceeded. Retry after the specified duration.
+      headers:
+        Retry-After:
+          description: Number of seconds to wait before retrying.
+          schema:
+            type: integer
+            example: 60
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/rate-limit"
+            title: "Too Many Requests"
+            status: 429
+            detail: "Rate limit exceeded. Please retry after 60 seconds."
+            traceId: "trace-429-kyc-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    InternalServerError:
+      description: An unexpected error occurred on the server.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/internal"
+            title: "Internal Server Error"
+            status: 500
+            detail: "An unexpected error occurred. Please contact support with the trace ID."
+            traceId: "trace-500-kyc-001"
+            timestamp: "2026-02-14T10:30:00Z"

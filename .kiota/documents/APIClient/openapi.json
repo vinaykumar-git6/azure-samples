@@ -1,0 +1,1106 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Client Profile API",
+    "description": "## Overview\nThe **Client Profile API** provides customer profile management including personal details,\ncontact information, address management, preferences, and relationship summary.\n\n## Data Privacy\n- All PII fields are subject to data masking in non-production environments\n- Emirates ID and passport numbers are partially masked in responses\n- Customer consent is required for data sharing with third parties\n",
+    "contact": {
+      "name": "Banking API Support",
+      "email": "api-support@bank.com"
+    },
+    "license": {
+      "name": "Apache 2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0"
+    },
+    "version": "v1"
+  },
+  "servers": [
+    {
+      "url": "https://apim-dev-0603.azure-api.net/banking/clients"
+    }
+  ],
+  "paths": {
+    "/customers/me": {
+      "get": {
+        "tags": [
+          "Profile"
+        ],
+        "summary": "Get customer profile",
+        "description": "Retrieves the complete profile of the authenticated customer including personal details,\ncontact information, identification documents, and account officer details.\n",
+        "operationId": "getCustomerProfile",
+        "responses": {
+          "200": {
+            "description": "Customer profile retrieved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerProfileResponse"
+                },
+                "example": {
+                  "data": {
+                    "customerId": "CUST-2026-001234",
+                    "cifNumber": "CIF-7890123456",
+                    "customerType": "INDIVIDUAL",
+                    "segment": "PRIORITY",
+                    "title": "Mr.",
+                    "firstName": "Vinay",
+                    "middleName": null,
+                    "lastName": "Kumar",
+                    "fullName": "Vinay Kumar",
+                    "preferredName": "Vinay",
+                    "dateOfBirth": "1990-05-15",
+                    "gender": "MALE",
+                    "nationality": "Indian",
+                    "countryOfResidence": "AE",
+                    "residencyStatus": "RESIDENT",
+                    "maritalStatus": "MARRIED",
+                    "identificationDocuments": [
+                      {
+                        "documentType": "EMIRATES_ID",
+                        "documentNumber": "784-****-*****-1",
+                        "issueDate": "2024-01-15",
+                        "expiryDate": "2027-01-14",
+                        "status": "VALID"
+                      },
+                      {
+                        "documentType": "PASSPORT",
+                        "documentNumber": "T****5678",
+                        "nationality": "Indian",
+                        "issueDate": "2022-03-10",
+                        "expiryDate": "2032-03-09",
+                        "status": "VALID"
+                      }
+                    ],
+                    "contactInformation": {
+                      "primaryMobile": "+971-50-***-4567",
+                      "secondaryMobile": null,
+                      "primaryEmail": "v****@gmail.com",
+                      "workEmail": "v****@microsoft.com",
+                      "homePhone": null,
+                      "workPhone": null
+                    },
+                    "employment": {
+                      "employerName": "Microsoft",
+                      "designation": "Senior Software Engineer",
+                      "employmentType": "SALARIED",
+                      "industry": "TECHNOLOGY",
+                      "annualIncome": {
+                        "value": 300000,
+                        "currency": "AED"
+                      },
+                      "dateOfJoining": "2023-02-01"
+                    },
+                    "primaryAddress": {
+                      "addressType": "HOME",
+                      "addressLine1": "Apartment 1205, Building A",
+                      "addressLine2": "Marina Diamond Complex",
+                      "city": "Dubai",
+                      "state": "Dubai",
+                      "country": "AE",
+                      "postalCode": "00000",
+                      "poBox": "12345"
+                    },
+                    "accountOfficer": {
+                      "name": "Sarah Johnson",
+                      "designation": "Relationship Manager - Priority Banking",
+                      "email": "sarah.j@bank.com",
+                      "phone": "+971-4-123-4567"
+                    },
+                    "onboardingDate": "2023-03-01",
+                    "lastLoginAt": "2026-02-14T08:30:00.0000000+00:00",
+                    "kycStatus": "VERIFIED",
+                    "kycExpiryDate": "2027-03-01",
+                    "fatcaStatus": "COMPLIANT",
+                    "crsStatus": "COMPLIANT"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Profile"
+        ],
+        "summary": "Update customer profile",
+        "description": "Updates specific fields of the customer profile. Only fields included in the request\nbody will be updated. Certain fields like nationality and date of birth require\nbranch verification and cannot be updated through the API.\n\n**Updatable fields**: contact information, preferred name, marital status, employment details.\n**Non-updatable via API**: date of birth, nationality, identification documents.\n",
+        "operationId": "updateCustomerProfile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileRequest"
+              },
+              "example": {
+                "preferredName": "Vinay",
+                "contactInformation": {
+                  "primaryMobile": "+971-50-123-4567",
+                  "primaryEmail": "vinay.kumar@gmail.com"
+                },
+                "employment": {
+                  "employerName": "Microsoft",
+                  "designation": "Principal Software Engineer",
+                  "annualIncome": {
+                    "value": 360000,
+                    "currency": "AED"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Profile updated successfully.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data": {
+                    "customerId": "CUST-2026-001234",
+                    "updatedFields": [
+                      "preferredName",
+                      "contactInformation.primaryMobile",
+                      "contactInformation.primaryEmail",
+                      "employment.designation",
+                      "employment.annualIncome"
+                    ],
+                    "message": "Profile updated successfully.",
+                    "updatedAt": "2026-02-14T02:30:00.0000000+00:00"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request. Non-updatable field included."
+          }
+        }
+      }
+    },
+    "/customers/me/addresses": {
+      "get": {
+        "tags": [
+          "Addresses"
+        ],
+        "summary": "List customer addresses",
+        "description": "Retrieves all registered addresses for the customer.",
+        "operationId": "listAddresses",
+        "responses": {
+          "200": {
+            "description": "Addresses retrieved.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data": [
+                    {
+                      "addressId": "ADDR-001",
+                      "addressType": "HOME",
+                      "isPrimary": true,
+                      "addressLine1": "Apartment 1205, Building A",
+                      "addressLine2": "Marina Diamond Complex",
+                      "city": "Dubai",
+                      "state": "Dubai",
+                      "country": "AE",
+                      "postalCode": "00000",
+                      "poBox": "12345",
+                      "verificationStatus": "VERIFIED",
+                      "lastVerifiedDate": "2025-03-01"
+                    },
+                    {
+                      "addressId": "ADDR-002",
+                      "addressType": "WORK",
+                      "isPrimary": false,
+                      "addressLine1": "Microsoft Office, Floor 15",
+                      "addressLine2": "Media One Tower, Dubai Media City",
+                      "city": "Dubai",
+                      "state": "Dubai",
+                      "country": "AE",
+                      "postalCode": "00000",
+                      "poBox": "502200",
+                      "verificationStatus": "VERIFIED",
+                      "lastVerifiedDate": "2025-03-01"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Addresses"
+        ],
+        "summary": "Add a new address",
+        "description": "Adds a new address to the customer profile. Address verification may be required.",
+        "operationId": "addAddress",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddAddressRequest"
+              },
+              "example": {
+                "addressType": "MAILING",
+                "addressLine1": "PO Box 67890",
+                "city": "Abu Dhabi",
+                "state": "Abu Dhabi",
+                "country": "AE",
+                "poBox": "67890"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Address added successfully.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data": {
+                    "addressId": "ADDR-003",
+                    "addressType": "MAILING",
+                    "verificationStatus": "PENDING",
+                    "message": "Address added. Verification may be required.",
+                    "createdAt": "2026-02-14T03:00:00.0000000+00:00"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/customers/me/preferences": {
+      "get": {
+        "tags": [
+          "Preferences"
+        ],
+        "summary": "Get customer preferences",
+        "description": "Retrieves communication, notification, and service preferences.",
+        "operationId": "getPreferences",
+        "responses": {
+          "200": {
+            "description": "Preferences retrieved.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data": {
+                    "customerId": "CUST-2026-001234",
+                    "communication": {
+                      "preferredLanguage": "en",
+                      "preferredChannel": "PUSH_NOTIFICATION",
+                      "smsEnabled": true,
+                      "emailEnabled": true,
+                      "pushEnabled": true,
+                      "whatsappEnabled": false
+                    },
+                    "notifications": {
+                      "transactionAlerts": true,
+                      "transactionAlertThreshold": {
+                        "value": 100,
+                        "currency": "AED"
+                      },
+                      "balanceAlerts": true,
+                      "lowBalanceThreshold": {
+                        "value": 1000,
+                        "currency": "AED"
+                      },
+                      "loginAlerts": true,
+                      "promotionalOffers": false,
+                      "productUpdates": true,
+                      "emiReminders": true,
+                      "emiReminderDaysBefore": 3,
+                      "cardExpiryReminder": true
+                    },
+                    "services": {
+                      "estatements": true,
+                      "paperStatements": false,
+                      "autoPayCreditCard": true,
+                      "autoPayCreditCardType": "MINIMUM_DUE",
+                      "biometricLogin": true,
+                      "twoFactorAuth": true
+                    },
+                    "privacy": {
+                      "dataAnalyticsConsent": true,
+                      "marketingConsent": false,
+                      "thirdPartyDataSharing": false,
+                      "consentLastUpdated": "2025-12-01T10:00:00.0000000+00:00"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Preferences"
+        ],
+        "summary": "Update customer preferences",
+        "description": "Updates communication, notification, or service preferences.",
+        "operationId": "updatePreferences",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePreferencesRequest"
+              },
+              "example": {
+                "communication": {
+                  "whatsappEnabled": true
+                },
+                "notifications": {
+                  "transactionAlertThreshold": {
+                    "value": 500,
+                    "currency": "AED"
+                  },
+                  "promotionalOffers": false
+                },
+                "privacy": {
+                  "marketingConsent": false
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Preferences updated.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data": {
+                    "message": "Preferences updated successfully.",
+                    "updatedAt": "2026-02-14T03:30:00.0000000+00:00"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/customers/me/relationship-summary": {
+      "get": {
+        "tags": [
+          "Relationship"
+        ],
+        "summary": "Get relationship summary",
+        "description": "Provides a comprehensive portfolio overview including total relationship value,\nall product holdings (accounts, cards, loans, investments), and relationship tier.\n",
+        "operationId": "getRelationshipSummary",
+        "responses": {
+          "200": {
+            "description": "Relationship summary retrieved.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data": {
+                    "customerId": "CUST-2026-001234",
+                    "relationshipTier": "PRIORITY",
+                    "relationshipSince": "2023-03-01",
+                    "totalRelationshipValue": {
+                      "value": 485250.3,
+                      "currency": "AED"
+                    },
+                    "portfolioSummary": {
+                      "accounts": {
+                        "count": 3,
+                        "totalBalance": {
+                          "value": 245800.3,
+                          "currency": "AED"
+                        },
+                        "breakdown": [
+                          {
+                            "type": "CURRENT",
+                            "count": 1,
+                            "balance": 125000
+                          },
+                          {
+                            "type": "SAVINGS",
+                            "count": 1,
+                            "balance": 85800.3
+                          },
+                          {
+                            "type": "FIXED_DEPOSIT",
+                            "count": 1,
+                            "balance": 35000
+                          }
+                        ]
+                      },
+                      "cards": {
+                        "count": 3,
+                        "activeCards": 3,
+                        "totalCreditLimit": {
+                          "value": 80000,
+                          "currency": "AED"
+                        },
+                        "totalOutstanding": {
+                          "value": 14579.5,
+                          "currency": "AED"
+                        }
+                      },
+                      "loans": {
+                        "count": 1,
+                        "activeLoans": 1,
+                        "totalSanctioned": {
+                          "value": 150000,
+                          "currency": "AED"
+                        },
+                        "totalOutstanding": {
+                          "value": 88695.3,
+                          "currency": "AED"
+                        }
+                      },
+                      "investments": {
+                        "count": 2,
+                        "totalValue": {
+                          "value": 150775,
+                          "currency": "AED"
+                        }
+                      }
+                    },
+                    "rewardsBalance": {
+                      "totalPoints": 18750,
+                      "pointsValue": {
+                        "value": 187.5,
+                        "currency": "AED"
+                      }
+                    },
+                    "nextTierRequirement": {
+                      "tier": "WEALTH",
+                      "minimumRelationshipValue": {
+                        "value": 1000000,
+                        "currency": "AED"
+                      },
+                      "shortfall": {
+                        "value": 514749.7,
+                        "currency": "AED"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CustomerProfileResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CustomerProfile"
+          }
+        }
+      },
+      "CustomerProfile": {
+        "type": "object",
+        "properties": {
+          "customerId": {
+            "type": "string",
+            "description": "Unique customer identifier.",
+            "example": "CUST-2026-001234"
+          },
+          "cifNumber": {
+            "type": "string",
+            "description": "Customer Information File number used across systems.",
+            "example": "CIF-7890123456"
+          },
+          "customerType": {
+            "enum": [
+              "INDIVIDUAL",
+              "JOINT",
+              "CORPORATE",
+              "SME"
+            ],
+            "type": "string",
+            "example": "INDIVIDUAL"
+          },
+          "segment": {
+            "enum": [
+              "MASS",
+              "PREFERRED",
+              "PRIORITY",
+              "WEALTH",
+              "PRIVATE"
+            ],
+            "type": "string",
+            "description": "Customer segmentation tier determining service level.",
+            "example": "PRIORITY"
+          },
+          "title": {
+            "enum": [
+              "Mr.",
+              "Mrs.",
+              "Ms.",
+              "Dr.",
+              "Prof.",
+              "Sheikh",
+              "Sheikha"
+            ],
+            "type": "string",
+            "example": "Mr."
+          },
+          "firstName": {
+            "type": "string",
+            "example": "Vinay"
+          },
+          "middleName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "example": "Kumar"
+          },
+          "fullName": {
+            "type": "string",
+            "description": "Full name as per official documents.",
+            "example": "Vinay Kumar"
+          },
+          "preferredName": {
+            "type": "string",
+            "description": "Name the customer prefers to be called.",
+            "example": "Vinay"
+          },
+          "dateOfBirth": {
+            "type": "string",
+            "format": "date",
+            "example": "1990-05-15"
+          },
+          "gender": {
+            "enum": [
+              "MALE",
+              "FEMALE",
+              "OTHER",
+              "PREFER_NOT_TO_SAY"
+            ],
+            "type": "string",
+            "example": "MALE"
+          },
+          "nationality": {
+            "type": "string",
+            "example": "Indian"
+          },
+          "countryOfResidence": {
+            "type": "string",
+            "description": "ISO 3166-1 alpha-2 country code.",
+            "example": "AE"
+          },
+          "residencyStatus": {
+            "enum": [
+              "CITIZEN",
+              "RESIDENT",
+              "NON_RESIDENT"
+            ],
+            "type": "string",
+            "example": "RESIDENT"
+          },
+          "maritalStatus": {
+            "enum": [
+              "SINGLE",
+              "MARRIED",
+              "DIVORCED",
+              "WIDOWED"
+            ],
+            "type": "string",
+            "example": "MARRIED"
+          },
+          "identificationDocuments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IdentificationDocument"
+            }
+          },
+          "contactInformation": {
+            "$ref": "#/components/schemas/ContactInfo"
+          },
+          "employment": {
+            "$ref": "#/components/schemas/EmploymentInfo"
+          },
+          "primaryAddress": {
+            "$ref": "#/components/schemas/Address"
+          },
+          "accountOfficer": {
+            "$ref": "#/components/schemas/AccountOfficer"
+          },
+          "onboardingDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "lastLoginAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "kycStatus": {
+            "enum": [
+              "PENDING",
+              "VERIFIED",
+              "EXPIRED",
+              "REJECTED"
+            ],
+            "type": "string"
+          },
+          "kycExpiryDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "fatcaStatus": {
+            "enum": [
+              "COMPLIANT",
+              "NON_COMPLIANT",
+              "PENDING"
+            ],
+            "type": "string"
+          },
+          "crsStatus": {
+            "enum": [
+              "COMPLIANT",
+              "NON_COMPLIANT",
+              "PENDING"
+            ],
+            "type": "string"
+          }
+        }
+      },
+      "IdentificationDocument": {
+        "type": "object",
+        "properties": {
+          "documentType": {
+            "enum": [
+              "EMIRATES_ID",
+              "PASSPORT",
+              "DRIVING_LICENSE",
+              "NATIONAL_ID"
+            ],
+            "type": "string"
+          },
+          "documentNumber": {
+            "type": "string",
+            "description": "Partially masked document number."
+          },
+          "issueDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "expiryDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "status": {
+            "enum": [
+              "VALID",
+              "EXPIRED",
+              "PENDING_RENEWAL"
+            ],
+            "type": "string"
+          },
+          "nationality": {
+            "type": "string",
+            "description": "Only applicable for passport."
+          }
+        }
+      },
+      "ContactInfo": {
+        "type": "object",
+        "properties": {
+          "primaryMobile": {
+            "type": "string",
+            "description": "Primary mobile number (partially masked)."
+          },
+          "secondaryMobile": {
+            "type": "string",
+            "nullable": true
+          },
+          "primaryEmail": {
+            "type": "string",
+            "description": "Primary email address (partially masked)."
+          },
+          "workEmail": {
+            "type": "string",
+            "nullable": true
+          },
+          "homePhone": {
+            "type": "string",
+            "nullable": true
+          },
+          "workPhone": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "EmploymentInfo": {
+        "type": "object",
+        "properties": {
+          "employerName": {
+            "type": "string"
+          },
+          "designation": {
+            "type": "string"
+          },
+          "employmentType": {
+            "enum": [
+              "SALARIED",
+              "SELF_EMPLOYED",
+              "BUSINESS_OWNER",
+              "RETIRED",
+              "STUDENT",
+              "HOMEMAKER"
+            ],
+            "type": "string"
+          },
+          "industry": {
+            "enum": [
+              "TECHNOLOGY",
+              "FINANCE",
+              "HEALTHCARE",
+              "EDUCATION",
+              "GOVERNMENT",
+              "OIL_GAS",
+              "REAL_ESTATE",
+              "RETAIL",
+              "HOSPITALITY",
+              "OTHER"
+            ],
+            "type": "string"
+          },
+          "annualIncome": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": "number",
+                "format": "double"
+              },
+              "currency": {
+                "type": "string"
+              }
+            }
+          },
+          "dateOfJoining": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "Address": {
+        "type": "object",
+        "properties": {
+          "addressType": {
+            "enum": [
+              "HOME",
+              "WORK",
+              "MAILING"
+            ],
+            "type": "string"
+          },
+          "addressLine1": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "addressLine2": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string",
+            "description": "ISO 3166-1 alpha-2 code."
+          },
+          "postalCode": {
+            "type": "string"
+          },
+          "poBox": {
+            "type": "string"
+          }
+        }
+      },
+      "AccountOfficer": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "designation": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          }
+        }
+      },
+      "UpdateProfileRequest": {
+        "type": "object",
+        "properties": {
+          "preferredName": {
+            "type": "string"
+          },
+          "maritalStatus": {
+            "enum": [
+              "SINGLE",
+              "MARRIED",
+              "DIVORCED",
+              "WIDOWED"
+            ],
+            "type": "string"
+          },
+          "contactInformation": {
+            "type": "object",
+            "properties": {
+              "primaryMobile": {
+                "type": "string"
+              },
+              "secondaryMobile": {
+                "type": "string"
+              },
+              "primaryEmail": {
+                "type": "string",
+                "format": "email"
+              },
+              "workEmail": {
+                "type": "string",
+                "format": "email"
+              }
+            }
+          },
+          "employment": {
+            "type": "object",
+            "properties": {
+              "employerName": {
+                "type": "string"
+              },
+              "designation": {
+                "type": "string"
+              },
+              "employmentType": {
+                "type": "string"
+              },
+              "annualIncome": {
+                "type": "object",
+                "properties": {
+                  "value": {
+                    "type": "number",
+                    "format": "double"
+                  },
+                  "currency": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "AddAddressRequest": {
+        "required": [
+          "addressType",
+          "addressLine1",
+          "city",
+          "country"
+        ],
+        "type": "object",
+        "properties": {
+          "addressType": {
+            "enum": [
+              "HOME",
+              "WORK",
+              "MAILING"
+            ],
+            "type": "string"
+          },
+          "isPrimary": {
+            "type": "boolean",
+            "default": false
+          },
+          "addressLine1": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "addressLine2": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          },
+          "postalCode": {
+            "type": "string"
+          },
+          "poBox": {
+            "type": "string"
+          }
+        }
+      },
+      "UpdatePreferencesRequest": {
+        "type": "object",
+        "properties": {
+          "communication": {
+            "type": "object",
+            "properties": {
+              "preferredLanguage": {
+                "type": "string"
+              },
+              "preferredChannel": {
+                "enum": [
+                  "SMS",
+                  "EMAIL",
+                  "PUSH_NOTIFICATION",
+                  "WHATSAPP"
+                ],
+                "type": "string"
+              },
+              "smsEnabled": {
+                "type": "boolean"
+              },
+              "emailEnabled": {
+                "type": "boolean"
+              },
+              "pushEnabled": {
+                "type": "boolean"
+              },
+              "whatsappEnabled": {
+                "type": "boolean"
+              }
+            }
+          },
+          "notifications": {
+            "type": "object",
+            "properties": {
+              "transactionAlerts": {
+                "type": "boolean"
+              },
+              "transactionAlertThreshold": {
+                "type": "object",
+                "properties": {
+                  "value": {
+                    "type": "number",
+                    "format": "double"
+                  },
+                  "currency": {
+                    "type": "string"
+                  }
+                }
+              },
+              "balanceAlerts": {
+                "type": "boolean"
+              },
+              "lowBalanceThreshold": {
+                "type": "object",
+                "properties": {
+                  "value": {
+                    "type": "number",
+                    "format": "double"
+                  },
+                  "currency": {
+                    "type": "string"
+                  }
+                }
+              },
+              "promotionalOffers": {
+                "type": "boolean"
+              },
+              "productUpdates": {
+                "type": "boolean"
+              }
+            }
+          },
+          "privacy": {
+            "type": "object",
+            "properties": {
+              "dataAnalyticsConsent": {
+                "type": "boolean"
+              },
+              "marketingConsent": {
+                "type": "boolean"
+              },
+              "thirdPartyDataSharing": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "traceId": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "apiKeyHeader": {
+        "type": "apiKey",
+        "name": "Ocp-Apim-Subscription-Key",
+        "in": "header"
+      },
+      "apiKeyQuery": {
+        "type": "apiKey",
+        "name": "subscription-key",
+        "in": "query"
+      }
+    }
+  },
+  "security": [
+    {
+      "apiKeyHeader": [ ]
+    },
+    {
+      "apiKeyQuery": [ ]
+    }
+  ],
+  "tags": [
+    {
+      "name": "Profile",
+      "description": "Customer profile and personal information."
+    },
+    {
+      "name": "Addresses",
+      "description": "Customer address management."
+    },
+    {
+      "name": "Preferences",
+      "description": "Communication and service preferences."
+    },
+    {
+      "name": "Relationship",
+      "description": "Customer relationship summary and portfolio overview."
+    }
+  ]
+}

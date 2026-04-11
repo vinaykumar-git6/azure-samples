@@ -1,0 +1,13 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Demo MCP server",
+    "description": "Very basic MCP server that exposes mock tools and prompts.",
+    "version": "1.0"
+  },
+  "servers": [
+    {
+      "url": "https://my-mcp-server.contoso.com"
+    }
+  ]
+}

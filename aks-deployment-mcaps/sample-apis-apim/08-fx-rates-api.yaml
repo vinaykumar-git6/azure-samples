@@ -1,0 +1,872 @@
+openapi: 3.0.3
+info:
+  title: FX Rates API
+  description: |
+    ## Overview
+    The **FX Rates API** provides real-time and historical foreign exchange rates,
+    currency conversion calculations, and rate alerts. It supports all major and
+    exotic currency pairs traded in the UAE market.
+
+    ## Rate Types
+    | Type | Description | Update Frequency |
+    |------|-------------|------------------|
+    | INDICATIVE | Mid-market reference rates | Every 60 seconds |
+    | DEAL | Actual executable rates with spread | Real-time |
+    | CARD | Rates applied to card transactions | Updated 2x daily |
+    | REMITTANCE | Rates for international remittances | Updated 4x daily |
+
+    ## Supported Currency Pairs
+    Over 150 currency pairs supported with AED as the base currency.
+    Major pairs: AED/USD, AED/EUR, AED/GBP, AED/INR, AED/PKR, AED/PHP, AED/BDT
+  version: 1.0.0
+  contact:
+    name: Banking API Support
+    email: api-support@bank.com
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+servers:
+  - url: https://api.bank.com/v1
+    description: Production
+  - url: https://sandbox.api.bank.com/v1
+    description: Sandbox
+
+tags:
+  - name: Exchange Rates
+    description: Real-time and historical exchange rate data.
+  - name: Conversion
+    description: Currency conversion calculations.
+  - name: Rate Alerts
+    description: Set up and manage exchange rate alerts.
+
+security:
+  - BearerAuth: []
+  - ApiKeyAuth: []
+
+paths:
+  /fx/rates:
+    get:
+      tags:
+        - Exchange Rates
+      summary: Get current exchange rates
+      description: |
+        Retrieves current exchange rates for specified currency pairs. If no pairs
+        are specified, returns rates for all major pairs with AED as base currency.
+      operationId: getExchangeRates
+      parameters:
+        - name: baseCurrency
+          in: query
+          required: false
+          description: Base currency (ISO 4217). Defaults to AED.
+          schema:
+            type: string
+            default: "AED"
+          example: "AED"
+        - name: targetCurrencies
+          in: query
+          required: false
+          description: Comma-separated list of target currency codes.
+          schema:
+            type: string
+          example: "USD,EUR,GBP,INR,PKR,PHP"
+        - name: rateType
+          in: query
+          required: false
+          description: Type of rate to retrieve.
+          schema:
+            type: string
+            enum: [INDICATIVE, DEAL, CARD, REMITTANCE]
+            default: "INDICATIVE"
+      responses:
+        '200':
+          description: Exchange rates retrieved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExchangeRateResponse'
+              example:
+                data:
+                  baseCurrency: "AED"
+                  rateType: "INDICATIVE"
+                  timestamp: "2026-02-14T16:30:00Z"
+                  rates:
+                    - targetCurrency: "USD"
+                      currencyName: "US Dollar"
+                      buyRate: 0.27229
+                      sellRate: 0.27225
+                      midRate: 0.27227
+                      spread: 0.00004
+                      change24h: 0.0000
+                      changePercent24h: 0.00
+                      high24h: 0.27230
+                      low24h: 0.27225
+                      flag: "🇺🇸"
+                    - targetCurrency: "EUR"
+                      currencyName: "Euro"
+                      buyRate: 0.25140
+                      sellRate: 0.25050
+                      midRate: 0.25095
+                      spread: 0.00090
+                      change24h: -0.00120
+                      changePercent24h: -0.48
+                      high24h: 0.25260
+                      low24h: 0.25020
+                      flag: "🇪🇺"
+                    - targetCurrency: "GBP"
+                      currencyName: "British Pound"
+                      buyRate: 0.21520
+                      sellRate: 0.21410
+                      midRate: 0.21465
+                      spread: 0.00110
+                      change24h: 0.00085
+                      changePercent24h: 0.40
+                      high24h: 0.21580
+                      low24h: 0.21380
+                      flag: "🇬🇧"
+                    - targetCurrency: "INR"
+                      currencyName: "Indian Rupee"
+                      buyRate: 22.8500
+                      sellRate: 22.7200
+                      midRate: 22.7850
+                      spread: 0.1300
+                      change24h: 0.0350
+                      changePercent24h: 0.15
+                      high24h: 22.8800
+                      low24h: 22.7100
+                      flag: "🇮🇳"
+                    - targetCurrency: "PKR"
+                      currencyName: "Pakistani Rupee"
+                      buyRate: 75.8500
+                      sellRate: 75.2000
+                      midRate: 75.5250
+                      spread: 0.6500
+                      change24h: -0.1500
+                      changePercent24h: -0.20
+                      high24h: 75.9000
+                      low24h: 75.1500
+                      flag: "🇵🇰"
+                    - targetCurrency: "PHP"
+                      currencyName: "Philippine Peso"
+                      buyRate: 15.5800
+                      sellRate: 15.4200
+                      midRate: 15.5000
+                      spread: 0.1600
+                      change24h: 0.0200
+                      changePercent24h: 0.13
+                      high24h: 15.6000
+                      low24h: 15.3900
+                      flag: "🇵🇭"
+
+  /fx/rates/history:
+    get:
+      tags:
+        - Exchange Rates
+      summary: Get historical exchange rates
+      description: |
+        Retrieves historical exchange rates for a specific currency pair. Supports
+        daily, weekly, and monthly granularity. Maximum range is 365 days.
+      operationId: getHistoricalRates
+      parameters:
+        - name: baseCurrency
+          in: query
+          required: true
+          schema:
+            type: string
+          example: "AED"
+        - name: targetCurrency
+          in: query
+          required: true
+          schema:
+            type: string
+          example: "INR"
+        - name: fromDate
+          in: query
+          required: true
+          description: Start date for historical data.
+          schema:
+            type: string
+            format: date
+          example: "2025-08-14"
+        - name: toDate
+          in: query
+          required: true
+          description: End date for historical data.
+          schema:
+            type: string
+            format: date
+          example: "2026-02-14"
+        - name: granularity
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [DAILY, WEEKLY, MONTHLY]
+            default: "DAILY"
+      responses:
+        '200':
+          description: Historical rates retrieved.
+          content:
+            application/json:
+              example:
+                data:
+                  baseCurrency: "AED"
+                  targetCurrency: "INR"
+                  granularity: "MONTHLY"
+                  fromDate: "2025-08-14"
+                  toDate: "2026-02-14"
+                  dataPoints:
+                    - date: "2025-08-14"
+                      open: 22.4500
+                      close: 22.5200
+                      high: 22.6100
+                      low: 22.3800
+                      average: 22.4950
+                    - date: "2025-09-14"
+                      open: 22.5200
+                      close: 22.6800
+                      high: 22.7500
+                      low: 22.4900
+                      average: 22.6000
+                    - date: "2025-10-14"
+                      open: 22.6800
+                      close: 22.5500
+                      high: 22.7200
+                      low: 22.5000
+                      average: 22.6100
+                    - date: "2025-11-14"
+                      open: 22.5500
+                      close: 22.7100
+                      high: 22.8000
+                      low: 22.5200
+                      average: 22.6600
+                    - date: "2025-12-14"
+                      open: 22.7100
+                      close: 22.6500
+                      high: 22.7800
+                      low: 22.6000
+                      average: 22.6900
+                    - date: "2026-01-14"
+                      open: 22.6500
+                      close: 22.7500
+                      high: 22.8200
+                      low: 22.6200
+                      average: 22.7350
+                    - date: "2026-02-14"
+                      open: 22.7500
+                      close: 22.7850
+                      high: 22.8800
+                      low: 22.7100
+                      average: 22.7950
+                  statistics:
+                    periodHigh: 22.8800
+                    periodLow: 22.3800
+                    periodAverage: 22.6550
+                    periodChange: 0.3350
+                    periodChangePercent: 1.49
+
+  /fx/convert:
+    post:
+      tags:
+        - Conversion
+      summary: Convert currency
+      description: |
+        Calculates the equivalent amount in the target currency at the current exchange rate.
+        Returns both indicative and deal rates for comparison. The deal rate quote is
+        valid for 30 seconds and can be locked for execution.
+      operationId: convertCurrency
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConversionRequest'
+            example:
+              fromCurrency: "AED"
+              toCurrency: "INR"
+              amount: 10000.00
+              direction: "SELL"
+      responses:
+        '200':
+          description: Conversion calculated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversionResponse'
+              example:
+                data:
+                  quoteId: "FXQ-2026-0214-001234"
+                  fromCurrency: "AED"
+                  toCurrency: "INR"
+                  inputAmount: 10000.00
+                  direction: "SELL"
+                  indicativeRate:
+                    rate: 22.7850
+                    convertedAmount: 227850.00
+                    description: "Mid-market reference rate (not executable)"
+                  dealRate:
+                    rate: 22.7200
+                    convertedAmount: 227200.00
+                    spread: 0.0650
+                    spreadPercent: 0.29
+                    description: "Executable rate inclusive of bank spread"
+                  fees:
+                    transferFee:
+                      value: 0.00
+                      currency: "AED"
+                      description: "No transfer fee for amounts under AED 25,000"
+                    correspondentFee:
+                      value: 50.00
+                      currency: "AED"
+                      description: "Intermediary bank processing fee"
+                  totalDebit:
+                    value: 10050.00
+                    currency: "AED"
+                    description: "Total amount to be debited including fees"
+                  recipientReceives:
+                    value: 227200.00
+                    currency: "INR"
+                  effectiveRate: 22.6070
+                  quoteValidUntil: "2026-02-14T16:30:30Z"
+                  quoteValidSeconds: 30
+                  timestamp: "2026-02-14T16:30:00Z"
+
+  /fx/rates/compare:
+    get:
+      tags:
+        - Exchange Rates
+      summary: Compare rates across channels
+      description: |
+        Compares exchange rates across different channels (online, branch, card, remittance)
+        to help customers choose the most cost-effective option.
+      operationId: compareRates
+      parameters:
+        - name: fromCurrency
+          in: query
+          required: true
+          schema:
+            type: string
+          example: "AED"
+        - name: toCurrency
+          in: query
+          required: true
+          schema:
+            type: string
+          example: "INR"
+        - name: amount
+          in: query
+          required: true
+          schema:
+            type: number
+            format: double
+          example: 10000.00
+      responses:
+        '200':
+          description: Rate comparison retrieved.
+          content:
+            application/json:
+              example:
+                data:
+                  fromCurrency: "AED"
+                  toCurrency: "INR"
+                  amount: 10000.00
+                  midMarketRate: 22.7850
+                  comparison:
+                    - channel: "ONLINE_BANKING"
+                      rate: 22.7200
+                      convertedAmount: 227200.00
+                      fees: 0.00
+                      totalCost: 10000.00
+                      recipientReceives: 227200.00
+                      costVsMidMarket: 650.00
+                      costVsMidMarketPercent: 0.29
+                      recommendation: "BEST_VALUE"
+                    - channel: "MOBILE_APP"
+                      rate: 22.7200
+                      convertedAmount: 227200.00
+                      fees: 0.00
+                      totalCost: 10000.00
+                      recipientReceives: 227200.00
+                      costVsMidMarket: 650.00
+                      costVsMidMarketPercent: 0.29
+                    - channel: "BRANCH"
+                      rate: 22.6500
+                      convertedAmount: 226500.00
+                      fees: 25.00
+                      totalCost: 10025.00
+                      recipientReceives: 226500.00
+                      costVsMidMarket: 1350.00
+                      costVsMidMarketPercent: 0.59
+                    - channel: "REMITTANCE_PARTNER"
+                      rate: 22.7000
+                      convertedAmount: 227000.00
+                      fees: 15.00
+                      totalCost: 10015.00
+                      recipientReceives: 227000.00
+                      costVsMidMarket: 850.00
+                      costVsMidMarketPercent: 0.37
+                    - channel: "CARD_TRANSACTION"
+                      rate: 22.5000
+                      convertedAmount: 225000.00
+                      fees: 200.00
+                      totalCost: 10200.00
+                      recipientReceives: 225000.00
+                      costVsMidMarket: 2850.00
+                      costVsMidMarketPercent: 1.25
+                  timestamp: "2026-02-14T16:30:00Z"
+
+  /fx/alerts:
+    get:
+      tags:
+        - Rate Alerts
+      summary: List rate alerts
+      description: Retrieves all active and triggered rate alerts for the customer.
+      operationId: listRateAlerts
+      responses:
+        '200':
+          description: Rate alerts retrieved.
+          content:
+            application/json:
+              example:
+                data:
+                  - alertId: "FXA-2026-001"
+                    baseCurrency: "AED"
+                    targetCurrency: "INR"
+                    condition: "ABOVE"
+                    targetRate: 23.00
+                    currentRate: 22.7850
+                    status: "ACTIVE"
+                    notifyVia: ["PUSH", "EMAIL"]
+                    createdAt: "2026-02-01T10:00:00Z"
+                    expiresAt: "2026-03-01T10:00:00Z"
+                  - alertId: "FXA-2026-002"
+                    baseCurrency: "AED"
+                    targetCurrency: "GBP"
+                    condition: "BELOW"
+                    targetRate: 0.2100
+                    currentRate: 0.21465
+                    status: "ACTIVE"
+                    notifyVia: ["PUSH"]
+                    createdAt: "2026-02-10T08:00:00Z"
+                    expiresAt: "2026-03-10T08:00:00Z"
+
+    post:
+      tags:
+        - Rate Alerts
+      summary: Create a rate alert
+      description: |
+        Creates a new rate alert that notifies the customer when the exchange rate
+        reaches the specified target. Alerts are active for up to 30 days.
+      operationId: createRateAlert
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRateAlertRequest'
+            example:
+              baseCurrency: "AED"
+              targetCurrency: "EUR"
+              condition: "BELOW"
+              targetRate: 0.2450
+              notifyVia: ["PUSH", "SMS"]
+              expiresInDays: 30
+      responses:
+        '201':
+          description: Rate alert created.
+          content:
+            application/json:
+              example:
+                data:
+                  alertId: "FXA-2026-003"
+                  status: "ACTIVE"
+                  currentRate: 0.25095
+                  targetRate: 0.2450
+                  distancePercent: 2.37
+                  message: "Alert created. You will be notified when AED/EUR reaches 0.2450 or below."
+                  expiresAt: "2026-03-16T16:30:00Z"
+
+  /fx/alerts/{alertId}:
+    delete:
+      tags:
+        - Rate Alerts
+      summary: Delete a rate alert
+      description: Deletes an active rate alert.
+      operationId: deleteRateAlert
+      parameters:
+        - name: alertId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Alert deleted.
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  schemas:
+    ExchangeRateResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            baseCurrency:
+              type: string
+              description: Base currency code (ISO 4217).
+              example: "AED"
+            rateType:
+              type: string
+              enum: [INDICATIVE, DEAL, CARD, REMITTANCE]
+            timestamp:
+              type: string
+              format: date-time
+              description: Timestamp when rates were last updated.
+            rates:
+              type: array
+              items:
+                $ref: '#/components/schemas/CurrencyRate'
+
+    CurrencyRate:
+      type: object
+      description: Exchange rate for a currency pair.
+      properties:
+        targetCurrency:
+          type: string
+          description: Target currency code (ISO 4217).
+          example: "USD"
+        currencyName:
+          type: string
+          description: Full name of the target currency.
+          example: "US Dollar"
+        buyRate:
+          type: number
+          format: double
+          description: Rate at which the bank buys the target currency (customer sells).
+          example: 0.27229
+        sellRate:
+          type: number
+          format: double
+          description: Rate at which the bank sells the target currency (customer buys).
+          example: 0.27225
+        midRate:
+          type: number
+          format: double
+          description: Mid-market reference rate (average of buy and sell).
+          example: 0.27227
+        spread:
+          type: number
+          format: double
+          description: Difference between buy and sell rates.
+          example: 0.00004
+        change24h:
+          type: number
+          format: double
+          description: Absolute rate change in the last 24 hours.
+          example: 0.0000
+        changePercent24h:
+          type: number
+          format: double
+          description: Percentage rate change in the last 24 hours.
+          example: 0.00
+        high24h:
+          type: number
+          format: double
+          description: Highest rate in the last 24 hours.
+        low24h:
+          type: number
+          format: double
+          description: Lowest rate in the last 24 hours.
+        flag:
+          type: string
+          description: Country flag emoji for display purposes.
+          example: "🇺🇸"
+
+    ConversionRequest:
+      type: object
+      required:
+        - fromCurrency
+        - toCurrency
+        - amount
+      properties:
+        fromCurrency:
+          type: string
+          description: Source currency code (ISO 4217).
+          pattern: "^[A-Z]{3}$"
+          example: "AED"
+        toCurrency:
+          type: string
+          description: Target currency code (ISO 4217).
+          pattern: "^[A-Z]{3}$"
+          example: "INR"
+        amount:
+          type: number
+          format: double
+          description: Amount to convert.
+          minimum: 0.01
+          example: 10000.00
+        direction:
+          type: string
+          description: |
+            Direction of conversion:
+            - `SELL` — Selling fromCurrency to buy toCurrency
+            - `BUY` — Buying toCurrency with fromCurrency
+          enum: [SELL, BUY]
+          default: "SELL"
+          example: "SELL"
+
+    ConversionResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            quoteId:
+              type: string
+              description: Unique quote identifier for rate locking.
+              example: "FXQ-2026-0214-001234"
+            fromCurrency:
+              type: string
+            toCurrency:
+              type: string
+            inputAmount:
+              type: number
+              format: double
+            direction:
+              type: string
+            indicativeRate:
+              type: object
+              properties:
+                rate:
+                  type: number
+                  format: double
+                convertedAmount:
+                  type: number
+                  format: double
+                description:
+                  type: string
+            dealRate:
+              type: object
+              properties:
+                rate:
+                  type: number
+                  format: double
+                convertedAmount:
+                  type: number
+                  format: double
+                spread:
+                  type: number
+                  format: double
+                spreadPercent:
+                  type: number
+                  format: double
+                description:
+                  type: string
+            fees:
+              type: object
+              properties:
+                transferFee:
+                  type: object
+                  properties:
+                    value:
+                      type: number
+                      format: double
+                    currency:
+                      type: string
+                    description:
+                      type: string
+                correspondentFee:
+                  type: object
+                  properties:
+                    value:
+                      type: number
+                      format: double
+                    currency:
+                      type: string
+                    description:
+                      type: string
+            totalDebit:
+              type: object
+              properties:
+                value:
+                  type: number
+                  format: double
+                currency:
+                  type: string
+                description:
+                  type: string
+            recipientReceives:
+              type: object
+              properties:
+                value:
+                  type: number
+                  format: double
+                currency:
+                  type: string
+            effectiveRate:
+              type: number
+              format: double
+              description: All-in rate including fees.
+            quoteValidUntil:
+              type: string
+              format: date-time
+            quoteValidSeconds:
+              type: integer
+            timestamp:
+              type: string
+              format: date-time
+
+    CreateRateAlertRequest:
+      type: object
+      required:
+        - baseCurrency
+        - targetCurrency
+        - condition
+        - targetRate
+      properties:
+        baseCurrency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+          example: "AED"
+        targetCurrency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+          example: "EUR"
+        condition:
+          type: string
+          description: Alert condition trigger.
+          enum: [ABOVE, BELOW, EQUALS]
+          example: "BELOW"
+        targetRate:
+          type: number
+          format: double
+          description: Target exchange rate to trigger the alert.
+          example: 0.2450
+        notifyVia:
+          type: array
+          description: Notification channels.
+          items:
+            type: string
+            enum: [PUSH, SMS, EMAIL]
+          example: ["PUSH", "SMS"]
+        expiresInDays:
+          type: integer
+          description: Number of days the alert remains active (max 30).
+          minimum: 1
+          maximum: 30
+          default: 30
+
+    ErrorResponse:
+      type: object
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        traceId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+  responses:
+    BadRequest:
+      description: The request was invalid or cannot be processed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/bad-request"
+            title: "Bad Request"
+            status: 400
+            detail: "Invalid currency pair. The source and target currencies cannot be the same."
+            traceId: "trace-400-fx-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    Unauthorized:
+      description: Authentication failed. The access token is missing, expired, or invalid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/unauthorized"
+            title: "Unauthorized"
+            status: 401
+            detail: "The access token has expired. Please obtain a new token."
+            traceId: "trace-401-fx-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    Forbidden:
+      description: The authenticated user does not have permission to access this resource.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/forbidden"
+            title: "Forbidden"
+            status: 403
+            detail: "You do not have permission to access FX rate services."
+            traceId: "trace-403-fx-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    NotFound:
+      description: The requested resource was not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/not-found"
+            title: "Resource Not Found"
+            status: 404
+            detail: "The requested currency pair or rate alert was not found."
+            traceId: "trace-404-fx-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    TooManyRequests:
+      description: Rate limit exceeded. Retry after the specified duration.
+      headers:
+        Retry-After:
+          description: Number of seconds to wait before retrying.
+          schema:
+            type: integer
+            example: 60
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/rate-limit"
+            title: "Too Many Requests"
+            status: 429
+            detail: "Rate limit exceeded. Please retry after 60 seconds."
+            traceId: "trace-429-fx-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    InternalServerError:
+      description: An unexpected error occurred on the server.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/internal"
+            title: "Internal Server Error"
+            status: 500
+            detail: "An unexpected error occurred. Please contact support with the trace ID."
+            traceId: "trace-500-fx-001"
+            timestamp: "2026-02-14T10:30:00Z"

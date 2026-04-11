@@ -1,0 +1,1082 @@
+openapi: 3.0.3
+info:
+  title: Payments API
+  description: |
+    ## Overview
+    The **Payments API** enables bill payments, utility payments, scheduled recurring payments,
+    and payment request management. It integrates with domestic payment networks and biller
+    aggregation services to provide comprehensive payment capabilities.
+
+    ## Supported Payment Types
+    - **Bill Payments** - Utilities, telecom, government fees, insurance
+    - **Standing Instructions** - Recurring scheduled payments
+    - **Payment Requests** - Request payments from other customers
+    - **QR Payments** - Pay using QR codes
+
+    ## Authentication
+    Requires OAuth 2.0 Bearer token with `payments:write` scope.
+  version: 1.0.0
+  contact:
+    name: Banking API Support
+    email: api-support@bank.com
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+servers:
+  - url: https://api.bank.com/v1
+    description: Production
+  - url: https://sandbox.api.bank.com/v1
+    description: Sandbox
+
+tags:
+  - name: Bill Payments
+    description: Pay bills to registered billers including utilities, telecom, and government services.
+  - name: Standing Instructions
+    description: Manage recurring scheduled payments with flexible scheduling options.
+  - name: Billers
+    description: Browse and search the biller directory.
+
+security:
+  - BearerAuth: []
+
+paths:
+  /billers:
+    get:
+      tags:
+        - Billers
+      summary: List available billers
+      description: |
+        Retrieves a list of registered billers available for bill payment. Billers can be
+        filtered by category and searched by name. Each biller entry includes the required
+        fields that must be provided when making a payment.
+      operationId: listBillers
+      parameters:
+        - name: category
+          in: query
+          required: false
+          description: Filter billers by category.
+          schema:
+            type: string
+            enum: [ELECTRICITY, WATER, GAS, TELECOM, INTERNET, INSURANCE, GOVERNMENT, EDUCATION, CREDIT_CARD, RENT, OTHER]
+          example: "TELECOM"
+        - name: search
+          in: query
+          required: false
+          description: Search billers by name or keyword. Minimum 3 characters.
+          schema:
+            type: string
+            minLength: 3
+          example: "Etisalat"
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: List of billers retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BillerListResponse'
+              example:
+                data:
+                  - billerId: "BILLER-ETISALAT-001"
+                    billerName: "Etisalat"
+                    billerCode: "ETISALAT"
+                    category: "TELECOM"
+                    subcategory: "MOBILE"
+                    logoUrl: "https://cdn.bank.com/billers/etisalat.png"
+                    description: "Etisalat UAE - Mobile, Landline, and Internet services"
+                    requiredFields:
+                      - fieldName: "accountNumber"
+                        fieldLabel: "Etisalat Account Number"
+                        fieldType: "TEXT"
+                        regex: "^\\d{10,13}$"
+                        required: true
+                        description: "Your Etisalat account number (10-13 digits)"
+                    supportedCurrencies: ["AED"]
+                    minimumAmount: 10.00
+                    maximumAmount: 50000.00
+                    isActive: true
+                  - billerId: "BILLER-DEWA-001"
+                    billerName: "DEWA"
+                    billerCode: "DEWA"
+                    category: "ELECTRICITY"
+                    subcategory: "ELECTRICITY_WATER"
+                    logoUrl: "https://cdn.bank.com/billers/dewa.png"
+                    description: "Dubai Electricity and Water Authority"
+                    requiredFields:
+                      - fieldName: "premiseNumber"
+                        fieldLabel: "Premise Number"
+                        fieldType: "TEXT"
+                        regex: "^\\d{9}$"
+                        required: true
+                        description: "Your 9-digit DEWA premise number"
+                    supportedCurrencies: ["AED"]
+                    minimumAmount: 1.00
+                    maximumAmount: 100000.00
+                    isActive: true
+                  - billerId: "BILLER-SALIK-001"
+                    billerName: "Salik"
+                    billerCode: "SALIK"
+                    category: "GOVERNMENT"
+                    subcategory: "TOLL"
+                    logoUrl: "https://cdn.bank.com/billers/salik.png"
+                    description: "Salik Toll Gate - Top up your Salik account"
+                    requiredFields:
+                      - fieldName: "salikAccountNumber"
+                        fieldLabel: "Salik Account/Tag Number"
+                        fieldType: "TEXT"
+                        regex: "^\\d{10}$"
+                        required: true
+                        description: "Your 10-digit Salik account or tag number"
+                    supportedCurrencies: ["AED"]
+                    minimumAmount: 50.00
+                    maximumAmount: 5000.00
+                    isActive: true
+                pagination:
+                  page: 1
+                  pageSize: 20
+                  totalRecords: 156
+                  totalPages: 8
+
+  /billers/{billerId}/inquiry:
+    post:
+      tags:
+        - Bill Payments
+      summary: Inquire bill amount
+      description: |
+        Performs a bill inquiry to retrieve the outstanding amount and bill details for a specific
+        biller account. This should be called before making a payment to get the accurate due amount.
+      operationId: inquireBill
+      parameters:
+        - name: billerId
+          in: path
+          required: true
+          description: Unique identifier of the biller.
+          schema:
+            type: string
+          example: "BILLER-DEWA-001"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - billerFields
+              properties:
+                billerFields:
+                  type: object
+                  description: Key-value pairs of the biller-specific fields.
+                  additionalProperties:
+                    type: string
+                  example:
+                    premiseNumber: "123456789"
+            example:
+              billerFields:
+                premiseNumber: "123456789"
+      responses:
+        '200':
+          description: Bill inquiry successful.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BillInquiryResponse'
+              example:
+                data:
+                  billerId: "BILLER-DEWA-001"
+                  billerName: "DEWA"
+                  accountHolderName: "Mohammed Al Rashid"
+                  accountNumber: "123456789"
+                  bills:
+                    - billNumber: "DEWA-2026-02-789456"
+                      billDate: "2026-02-01"
+                      dueDate: "2026-02-20"
+                      amount:
+                        value: 1245.50
+                        currency: "AED"
+                      status: "UNPAID"
+                      billPeriod: "January 2026"
+                      breakdown:
+                        - item: "Electricity Charges"
+                          amount: 890.00
+                        - item: "Water Charges"
+                          amount: 245.50
+                        - item: "Housing Fee"
+                          amount: 50.00
+                        - item: "Knowledge Fee"
+                          amount: 35.00
+                        - item: "Innovation Fee"
+                          amount: 25.00
+                  totalOutstanding:
+                    value: 1245.50
+                    currency: "AED"
+                  minimumPayment:
+                    value: 1245.50
+                    currency: "AED"
+        '404':
+          description: Biller account not found.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /payments/bills:
+    post:
+      tags:
+        - Bill Payments
+      summary: Pay a bill
+      description: |
+        Processes a bill payment to the specified biller. The payment is debited from the
+        customer's account and credited to the biller. Supports partial and full payments.
+
+        **Idempotency**: Use `X-Idempotency-Key` to prevent duplicate payments.
+      operationId: payBill
+      parameters:
+        - name: X-Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BillPaymentRequest'
+            example:
+              sourceAccountId: "ACC-2026-001234"
+              billerId: "BILLER-DEWA-001"
+              billerFields:
+                premiseNumber: "123456789"
+              amount:
+                value: 1245.50
+                currency: "AED"
+              billNumber: "DEWA-2026-02-789456"
+              paymentNote: "DEWA bill - January 2026"
+      responses:
+        '201':
+          description: Bill payment processed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BillPaymentResponse'
+              example:
+                data:
+                  paymentId: "BPAY-2026-0214-001234"
+                  transactionId: "TXN-2026-0214-BP001"
+                  status: "COMPLETED"
+                  statusMessage: "Bill payment processed successfully."
+                  sourceAccountId: "ACC-2026-001234"
+                  billerName: "DEWA"
+                  billerId: "BILLER-DEWA-001"
+                  billerAccountNumber: "123456789"
+                  billNumber: "DEWA-2026-02-789456"
+                  amount:
+                    value: 1245.50
+                    currency: "AED"
+                  fees:
+                    value: 0.00
+                    currency: "AED"
+                  totalDebitAmount:
+                    value: 1245.50
+                    currency: "AED"
+                  confirmationNumber: "CONF-DEWA-20260214-001"
+                  paymentDate: "2026-02-14T10:35:00Z"
+                  receiptUrl: "/payments/bills/BPAY-2026-0214-001234/receipt"
+        '400':
+          description: Invalid payment request.
+        '422':
+          description: Insufficient funds or payment rejected by biller.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /payments/standing-instructions:
+    get:
+      tags:
+        - Standing Instructions
+      summary: List standing instructions
+      description: |
+        Retrieves all active and completed standing instructions (recurring payments)
+        for the authenticated customer.
+      operationId: listStandingInstructions
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Filter by standing instruction status.
+          schema:
+            type: string
+            enum: [ACTIVE, PAUSED, CANCELLED, COMPLETED, EXPIRED]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Standing instructions retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandingInstructionListResponse'
+              example:
+                data:
+                  - instructionId: "SI-2026-001234"
+                    sourceAccountId: "ACC-2026-001234"
+                    instructionType: "BILL_PAYMENT"
+                    status: "ACTIVE"
+                    billerName: "DEWA"
+                    billerId: "BILLER-DEWA-001"
+                    amount:
+                      value: 1500.00
+                      currency: "AED"
+                    amountType: "FIXED"
+                    frequency: "MONTHLY"
+                    startDate: "2025-01-15"
+                    endDate: "2026-12-15"
+                    nextExecutionDate: "2026-03-15"
+                    lastExecutionDate: "2026-02-15"
+                    lastExecutionStatus: "COMPLETED"
+                    totalExecutions: 14
+                    successfulExecutions: 14
+                    failedExecutions: 0
+                    description: "Monthly DEWA bill payment"
+                    createdAt: "2025-01-10T08:00:00Z"
+                  - instructionId: "SI-2026-001235"
+                    sourceAccountId: "ACC-2026-001234"
+                    instructionType: "TRANSFER"
+                    status: "ACTIVE"
+                    beneficiaryName: "Ahmed Al Mansouri"
+                    beneficiaryIban: "AE070339876543210987654"
+                    amount:
+                      value: 3000.00
+                      currency: "AED"
+                    amountType: "FIXED"
+                    frequency: "MONTHLY"
+                    startDate: "2025-06-01"
+                    endDate: null
+                    nextExecutionDate: "2026-03-01"
+                    lastExecutionDate: "2026-02-01"
+                    lastExecutionStatus: "COMPLETED"
+                    totalExecutions: 9
+                    successfulExecutions: 9
+                    failedExecutions: 0
+                    description: "Monthly rent payment"
+                    createdAt: "2025-05-28T10:00:00Z"
+                pagination:
+                  page: 1
+                  pageSize: 20
+                  totalRecords: 2
+                  totalPages: 1
+
+    post:
+      tags:
+        - Standing Instructions
+      summary: Create a standing instruction
+      description: |
+        Creates a new standing instruction (recurring payment). Supports various frequencies
+        including daily, weekly, monthly, quarterly, and annually. The instruction can be
+        set for a fixed amount or the full outstanding bill amount.
+      operationId: createStandingInstruction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateStandingInstructionRequest'
+            example:
+              sourceAccountId: "ACC-2026-001234"
+              instructionType: "BILL_PAYMENT"
+              billerId: "BILLER-DEWA-001"
+              billerFields:
+                premiseNumber: "123456789"
+              amount:
+                value: 1500.00
+                currency: "AED"
+              amountType: "FIXED"
+              frequency: "MONTHLY"
+              dayOfExecution: 15
+              startDate: "2026-03-15"
+              endDate: "2027-03-15"
+              description: "Monthly DEWA bill payment"
+              notifyOnExecution: true
+              notifyOnFailure: true
+      responses:
+        '201':
+          description: Standing instruction created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandingInstructionResponse'
+              example:
+                data:
+                  instructionId: "SI-2026-001236"
+                  status: "ACTIVE"
+                  nextExecutionDate: "2026-03-15"
+                  message: "Standing instruction created successfully."
+        '400':
+          description: Invalid request parameters.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /payments/standing-instructions/{instructionId}:
+    delete:
+      tags:
+        - Standing Instructions
+      summary: Cancel a standing instruction
+      description: Cancels an active standing instruction. Future executions will not occur.
+      operationId: cancelStandingInstruction
+      parameters:
+        - name: instructionId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "SI-2026-001236"
+      responses:
+        '200':
+          description: Standing instruction cancelled successfully.
+          content:
+            application/json:
+              example:
+                data:
+                  instructionId: "SI-2026-001236"
+                  status: "CANCELLED"
+                  cancelledAt: "2026-02-14T12:00:00Z"
+                  message: "Standing instruction has been cancelled."
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    BillerListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Biller'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    Biller:
+      type: object
+      description: Registered biller information.
+      properties:
+        billerId:
+          type: string
+          description: Unique identifier of the biller in the system.
+          example: "BILLER-ETISALAT-001"
+        billerName:
+          type: string
+          description: Display name of the biller.
+          example: "Etisalat"
+        billerCode:
+          type: string
+          description: Short code used for the biller.
+          example: "ETISALAT"
+        category:
+          type: string
+          description: Primary category of the biller's services.
+          enum: [ELECTRICITY, WATER, GAS, TELECOM, INTERNET, INSURANCE, GOVERNMENT, EDUCATION, CREDIT_CARD, RENT, OTHER]
+          example: "TELECOM"
+        subcategory:
+          type: string
+          description: Subcategory for more specific classification.
+          example: "MOBILE"
+        logoUrl:
+          type: string
+          format: uri
+          description: URL to the biller's logo image.
+          example: "https://cdn.bank.com/billers/etisalat.png"
+        description:
+          type: string
+          description: Brief description of the biller and available services.
+          example: "Etisalat UAE - Mobile, Landline, and Internet services"
+        requiredFields:
+          type: array
+          description: List of fields that must be provided when making a payment to this biller.
+          items:
+            type: object
+            properties:
+              fieldName:
+                type: string
+                description: API field name to use in payment requests.
+                example: "accountNumber"
+              fieldLabel:
+                type: string
+                description: Human-readable label for display in forms.
+                example: "Etisalat Account Number"
+              fieldType:
+                type: string
+                description: Data type of the field.
+                enum: [TEXT, NUMBER, DATE, EMAIL, PHONE]
+                example: "TEXT"
+              regex:
+                type: string
+                description: Validation regex pattern for the field value.
+                example: "^\\d{10,13}$"
+              required:
+                type: boolean
+                description: Whether this field is mandatory.
+                example: true
+              description:
+                type: string
+                description: Help text explaining what value to enter.
+                example: "Your Etisalat account number (10-13 digits)"
+        supportedCurrencies:
+          type: array
+          description: List of currencies accepted by this biller.
+          items:
+            type: string
+          example: ["AED"]
+        minimumAmount:
+          type: number
+          format: double
+          description: Minimum payment amount accepted by the biller.
+          example: 10.00
+        maximumAmount:
+          type: number
+          format: double
+          description: Maximum payment amount accepted in a single payment.
+          example: 50000.00
+        isActive:
+          type: boolean
+          description: Whether the biller is currently accepting payments.
+          example: true
+
+    BillInquiryResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            billerId:
+              type: string
+              example: "BILLER-DEWA-001"
+            billerName:
+              type: string
+              example: "DEWA"
+            accountHolderName:
+              type: string
+              description: Name of the account holder as registered with the biller.
+              example: "Mohammed Al Rashid"
+            accountNumber:
+              type: string
+              example: "123456789"
+            bills:
+              type: array
+              description: List of outstanding bills.
+              items:
+                $ref: '#/components/schemas/BillDetail'
+            totalOutstanding:
+              type: object
+              properties:
+                value:
+                  type: number
+                  format: double
+                currency:
+                  type: string
+            minimumPayment:
+              type: object
+              properties:
+                value:
+                  type: number
+                  format: double
+                currency:
+                  type: string
+
+    BillDetail:
+      type: object
+      properties:
+        billNumber:
+          type: string
+          description: Unique bill reference number from the biller.
+          example: "DEWA-2026-02-789456"
+        billDate:
+          type: string
+          format: date
+          description: Date the bill was generated.
+          example: "2026-02-01"
+        dueDate:
+          type: string
+          format: date
+          description: Payment due date. Late payment may incur penalties.
+          example: "2026-02-20"
+        amount:
+          type: object
+          properties:
+            value:
+              type: number
+              format: double
+              example: 1245.50
+            currency:
+              type: string
+              example: "AED"
+        status:
+          type: string
+          description: Current payment status of the bill.
+          enum: [UNPAID, PARTIALLY_PAID, PAID, OVERDUE]
+          example: "UNPAID"
+        billPeriod:
+          type: string
+          description: The period this bill covers.
+          example: "January 2026"
+        breakdown:
+          type: array
+          description: Itemized breakdown of the bill charges.
+          items:
+            type: object
+            properties:
+              item:
+                type: string
+                description: Charge description.
+                example: "Electricity Charges"
+              amount:
+                type: number
+                format: double
+                example: 890.00
+
+    BillPaymentRequest:
+      type: object
+      required:
+        - sourceAccountId
+        - billerId
+        - billerFields
+        - amount
+      properties:
+        sourceAccountId:
+          type: string
+          description: Account to debit the payment from.
+          example: "ACC-2026-001234"
+        billerId:
+          type: string
+          description: Biller identifier.
+          example: "BILLER-DEWA-001"
+        billerFields:
+          type: object
+          description: Biller-specific fields as defined in the biller's `requiredFields`.
+          additionalProperties:
+            type: string
+          example:
+            premiseNumber: "123456789"
+        amount:
+          type: object
+          required:
+            - value
+            - currency
+          properties:
+            value:
+              type: number
+              format: double
+              description: Payment amount.
+              minimum: 0.01
+              example: 1245.50
+            currency:
+              type: string
+              example: "AED"
+        billNumber:
+          type: string
+          description: Specific bill number to pay (from bill inquiry).
+          example: "DEWA-2026-02-789456"
+        paymentNote:
+          type: string
+          description: Optional note/memo for the payment.
+          maxLength: 140
+          example: "DEWA bill - January 2026"
+
+    BillPaymentResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            paymentId:
+              type: string
+              description: Unique payment identifier.
+              example: "BPAY-2026-0214-001234"
+            transactionId:
+              type: string
+              description: Associated transaction ID.
+              example: "TXN-2026-0214-BP001"
+            status:
+              type: string
+              enum: [COMPLETED, PENDING, FAILED]
+              example: "COMPLETED"
+            statusMessage:
+              type: string
+              example: "Bill payment processed successfully."
+            sourceAccountId:
+              type: string
+            billerName:
+              type: string
+            billerId:
+              type: string
+            billerAccountNumber:
+              type: string
+            billNumber:
+              type: string
+            amount:
+              type: object
+              properties:
+                value:
+                  type: number
+                  format: double
+                currency:
+                  type: string
+            fees:
+              type: object
+              properties:
+                value:
+                  type: number
+                  format: double
+                currency:
+                  type: string
+            totalDebitAmount:
+              type: object
+              properties:
+                value:
+                  type: number
+                  format: double
+                currency:
+                  type: string
+            confirmationNumber:
+              type: string
+              description: Biller's confirmation/receipt number.
+              example: "CONF-DEWA-20260214-001"
+            paymentDate:
+              type: string
+              format: date-time
+            receiptUrl:
+              type: string
+              description: URL to download payment receipt.
+
+    StandingInstructionListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/StandingInstruction'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    StandingInstruction:
+      type: object
+      description: A recurring payment instruction.
+      properties:
+        instructionId:
+          type: string
+          description: Unique identifier for the standing instruction.
+          example: "SI-2026-001234"
+        sourceAccountId:
+          type: string
+          description: Account from which payments are debited.
+          example: "ACC-2026-001234"
+        instructionType:
+          type: string
+          description: Type of recurring payment.
+          enum: [BILL_PAYMENT, TRANSFER, OWN_ACCOUNT_TRANSFER]
+          example: "BILL_PAYMENT"
+        status:
+          type: string
+          description: |
+            Current status of the standing instruction:
+            - `ACTIVE` - Instruction is active and will execute on schedule
+            - `PAUSED` - Temporarily paused by customer
+            - `CANCELLED` - Permanently cancelled
+            - `COMPLETED` - All scheduled executions completed
+            - `EXPIRED` - End date has passed
+          enum: [ACTIVE, PAUSED, CANCELLED, COMPLETED, EXPIRED]
+          example: "ACTIVE"
+        amount:
+          type: object
+          properties:
+            value:
+              type: number
+              format: double
+            currency:
+              type: string
+        amountType:
+          type: string
+          description: |
+            - `FIXED` - Pay the exact specified amount each time
+            - `FULL_OUTSTANDING` - Pay the full outstanding bill amount
+            - `MINIMUM_DUE` - Pay only the minimum due amount
+          enum: [FIXED, FULL_OUTSTANDING, MINIMUM_DUE]
+          example: "FIXED"
+        frequency:
+          type: string
+          description: How often the payment is executed.
+          enum: [DAILY, WEEKLY, BI_WEEKLY, MONTHLY, QUARTERLY, SEMI_ANNUALLY, ANNUALLY]
+          example: "MONTHLY"
+        startDate:
+          type: string
+          format: date
+          description: Date when the standing instruction begins.
+        endDate:
+          type: string
+          format: date
+          nullable: true
+          description: Date when the standing instruction ends. Null for indefinite.
+        nextExecutionDate:
+          type: string
+          format: date
+          description: Next scheduled execution date.
+        lastExecutionDate:
+          type: string
+          format: date
+          nullable: true
+          description: Date of the most recent execution.
+        lastExecutionStatus:
+          type: string
+          enum: [COMPLETED, FAILED, SKIPPED]
+          nullable: true
+        totalExecutions:
+          type: integer
+          description: Total number of times the instruction has been executed.
+        successfulExecutions:
+          type: integer
+        failedExecutions:
+          type: integer
+        description:
+          type: string
+          maxLength: 140
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateStandingInstructionRequest:
+      type: object
+      required:
+        - sourceAccountId
+        - instructionType
+        - amount
+        - frequency
+        - startDate
+      properties:
+        sourceAccountId:
+          type: string
+          example: "ACC-2026-001234"
+        instructionType:
+          type: string
+          enum: [BILL_PAYMENT, TRANSFER, OWN_ACCOUNT_TRANSFER]
+        billerId:
+          type: string
+          description: Required for BILL_PAYMENT type.
+        billerFields:
+          type: object
+          additionalProperties:
+            type: string
+        beneficiaryId:
+          type: string
+          description: Required for TRANSFER type.
+        amount:
+          type: object
+          properties:
+            value:
+              type: number
+              format: double
+              minimum: 0.01
+            currency:
+              type: string
+        amountType:
+          type: string
+          enum: [FIXED, FULL_OUTSTANDING, MINIMUM_DUE]
+          default: "FIXED"
+        frequency:
+          type: string
+          enum: [DAILY, WEEKLY, BI_WEEKLY, MONTHLY, QUARTERLY, SEMI_ANNUALLY, ANNUALLY]
+        dayOfExecution:
+          type: integer
+          description: Day of the month (1-28) for monthly/quarterly/annual frequencies.
+          minimum: 1
+          maximum: 28
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+          nullable: true
+        description:
+          type: string
+          maxLength: 140
+        notifyOnExecution:
+          type: boolean
+          description: Send notification after each successful execution.
+          default: true
+        notifyOnFailure:
+          type: boolean
+          description: Send notification if execution fails.
+          default: true
+
+    StandingInstructionResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            instructionId:
+              type: string
+            status:
+              type: string
+            nextExecutionDate:
+              type: string
+              format: date
+            message:
+              type: string
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalRecords:
+          type: integer
+        totalPages:
+          type: integer
+
+    ErrorResponse:
+      type: object
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        traceId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+  responses:
+    BadRequest:
+      description: The request was invalid or cannot be processed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/bad-request"
+            title: "Bad Request"
+            status: 400
+            detail: "The payment request contains invalid or missing fields."
+            traceId: "trace-400-pay-001"
+            timestamp: "2026-02-14T10:30:00Z"
+            errors:
+              - field: "billerAccountNumber"
+                message: "Biller account number is required."
+                code: "MISSING_FIELD"
+    Unauthorized:
+      description: Authentication failed. The access token is missing, expired, or invalid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/unauthorized"
+            title: "Unauthorized"
+            status: 401
+            detail: "The access token has expired. Please obtain a new token."
+            traceId: "trace-401-pay-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    Forbidden:
+      description: The authenticated user does not have permission to access this resource.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/forbidden"
+            title: "Forbidden"
+            status: 403
+            detail: "You do not have permission to make payments from this account."
+            traceId: "trace-403-pay-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    NotFound:
+      description: The requested resource was not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/not-found"
+            title: "Resource Not Found"
+            status: 404
+            detail: "The requested biller or payment was not found."
+            traceId: "trace-404-pay-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    UnprocessableEntity:
+      description: The request was well-formed but could not be processed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/unprocessable"
+            title: "Unprocessable Entity"
+            status: 422
+            detail: "Payment rejected by biller. The account number is not valid for the selected biller."
+            traceId: "trace-422-pay-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    TooManyRequests:
+      description: Rate limit exceeded. Retry after the specified duration.
+      headers:
+        Retry-After:
+          description: Number of seconds to wait before retrying.
+          schema:
+            type: integer
+            example: 60
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/rate-limit"
+            title: "Too Many Requests"
+            status: 429
+            detail: "Rate limit exceeded. Please retry after 60 seconds."
+            traceId: "trace-429-pay-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    InternalServerError:
+      description: An unexpected error occurred on the server.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/internal"
+            title: "Internal Server Error"
+            status: 500
+            detail: "An unexpected error occurred. Please contact support with the trace ID."
+            traceId: "trace-500-pay-001"
+            timestamp: "2026-02-14T10:30:00Z"

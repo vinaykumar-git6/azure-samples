@@ -1,0 +1,19 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: mongodb-allow-transaction-api-only
+  namespace: dpworld
+spec:
+  # Apply this policy to the MongoDB pod
+  endpointSelector:
+    matchLabels:
+      app: mongodb
+  # Ingress rules - only allow transaction-api pods on port 27017
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app: transaction-api
+      toPorts:
+        - ports:
+            - port: "27017"
+              protocol: TCP

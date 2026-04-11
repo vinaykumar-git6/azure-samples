@@ -1,0 +1,58 @@
+{
+  "version": "1.0.0",
+  "clients": {
+    "test-kiota": {
+      "language": "Java",
+      "typeAccessModifier": "Public",
+      "structuredMimeTypes": [
+        "application/json",
+        "text/plain;q=0.9",
+        "application/x-www-form-urlencoded;q=0.2",
+        "multipart/form-data;q=0.1"
+      ],
+      "clientNamespaceName": "APISDK",
+      "usesBackingStore": false,
+      "includeAdditionalData": true,
+      "excludeBackwardCompatible": false,
+      "disabledValidationRules": [],
+      "descriptionLocation": "c:\\Users\\vinaykumar\\AppData\\Roaming\\Code\\User\\globalStorage\\apidev.azure-api-center\\azure-api-center\\bc38ea8678\\vinayorg-apic-17747494042347656227-14184462997421647925-default-tempFile.json",
+      "includePatterns": [
+        "/",
+        "/customers",
+        "/customers/me",
+        "/customers/me/addresses",
+        "/customers/me/preferences",
+        "/customers/me/relationship-summary"
+      ],
+      "excludePatterns": [],
+      "outputPath": "./../../../../AppData/Roaming/Code/User/globalStorage/apidev.azure-api-center/azure-api-center/bc38ea8678"
+    },
+    "APIClient": {
+      "language": "Python",
+      "typeAccessModifier": "Public",
+      "structuredMimeTypes": [
+        "application/json",
+        "text/plain;q=0.9",
+        "application/x-www-form-urlencoded;q=0.2",
+        "multipart/form-data;q=0.1"
+      ],
+      "clientNamespaceName": "ns",
+      "usesBackingStore": false,
+      "includeAdditionalData": true,
+      "excludeBackwardCompatible": false,
+      "disabledValidationRules": [],
+      "descriptionLocation": "c:\\Users\\vinaykumar\\AppData\\Roaming\\Code\\User\\globalStorage\\apidev.azure-api-center\\azure-api-center\\bc38ea8678\\vinayorg-apic-17747494042347656227-14184462997421647925-default-tempFile.json",
+      "includePatterns": [
+        "/",
+        "/customers",
+        "/customers/me",
+        "/customers/me/addresses",
+        "/customers/me/preferences",
+        "/customers/me/relationship-summary"
+      ],
+      "excludePatterns": [],
+      "outputPath": "./APIClient"
+    }
+  },
+  "plugins": {}
+}

@@ -1,0 +1,517 @@
+openapi: 3.0.3
+info:
+  title: Customer REST API
+  description: |
+    A REST API for managing customer data, deployed on Azure Kubernetes Service (AKS)
+    with Azure PostgreSQL Flexible Server as the backend database.
+    Supports Azure AD / Workload Identity authentication for secure database access.
+  version: 2.0.0
+  contact:
+    name: Customer API Support
+    email: vinaykumar@microsoft.com
+  license:
+    name: MIT
+
+servers:
+  - url: http://20.74.130.76
+    description: Production (AKS via Application Gateway)
+  - url: http://localhost:5000
+    description: Local development
+
+tags:
+  - name: Customers
+    description: Customer CRUD operations
+  - name: Health
+    description: Health check and monitoring
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Returns the API and database connectivity status.
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: healthy
+                service: customer-api
+                database: connected
+                timestamp: "2026-02-10T08:53:05.123456"
+        '503':
+          description: Service is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: unhealthy
+                service: customer-api
+                database: disconnected
+                error: "Connection refused"
+                timestamp: "2026-02-10T08:53:05.123456"
+
+  /api/customers:
+    get:
+      tags:
+        - Customers
+      summary: Get all customers
+      description: Retrieve a paginated list of customers with optional filtering by city and country.
+      operationId: getAllCustomers
+      parameters:
+        - name: page
+          in: query
+          description: Page number (1-based)
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: limit
+          in: query
+          description: Number of items per page (max 100)
+          required: false
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+        - name: city
+          in: query
+          description: Filter customers by city
+          required: false
+          schema:
+            type: string
+            example: Dubai
+        - name: country
+          in: query
+          description: Filter customers by country
+          required: false
+          schema:
+            type: string
+            example: UAE
+      responses:
+        '200':
+          description: List of customers with pagination metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerListResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      tags:
+        - Customers
+      summary: Create a new customer
+      description: Create a new customer record. Email must be unique.
+      operationId: createCustomer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerCreate'
+            example:
+              first_name: Ahmed
+              last_name: Al-Rashid
+              email: ahmed.rashid@example.com
+              phone: "+971-50-555-1003"
+              address: 789 Palm Jumeirah
+              city: Dubai
+              country: UAE
+      responses:
+        '201':
+          description: Customer created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '400':
+          description: Validation error (missing required fields)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "first_name is required"
+        '409':
+          description: Customer with this email already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Customer with this email already exists"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/customers/{customerId}:
+    get:
+      tags:
+        - Customers
+      summary: Get customer by ID
+      description: Retrieve a single customer by their unique ID.
+      operationId: getCustomerById
+      parameters:
+        - $ref: '#/components/parameters/customerId'
+      responses:
+        '200':
+          description: Customer found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '404':
+          description: Customer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Customer not found"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      tags:
+        - Customers
+      summary: Update customer details
+      description: |
+        Update one or more fields of an existing customer.
+        Email cannot be updated for security reasons.
+        Only provided fields will be updated.
+      operationId: updateCustomer
+      parameters:
+        - $ref: '#/components/parameters/customerId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerUpdate'
+            example:
+              first_name: Jane
+              city: Abu Dhabi
+              phone: "+971-55-555-9999"
+      responses:
+        '200':
+          description: Customer updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '400':
+          description: Validation error (no valid fields or empty body)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "No valid fields to update"
+        '404':
+          description: Customer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Customer not found"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - Customers
+      summary: Delete a customer
+      description: Permanently delete a customer by their unique ID.
+      operationId: deleteCustomer
+      parameters:
+        - $ref: '#/components/parameters/customerId'
+      responses:
+        '200':
+          description: Customer deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteResponse'
+              example:
+                message: "Customer deleted successfully"
+                id: 1
+        '404':
+          description: Customer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Customer not found"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  parameters:
+    customerId:
+      name: customerId
+      in: path
+      required: true
+      description: Unique customer ID
+      schema:
+        type: integer
+        minimum: 1
+        example: 1
+
+  schemas:
+    Customer:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Unique customer identifier
+          example: 1
+        first_name:
+          type: string
+          maxLength: 100
+          description: Customer's first name
+          example: Ahmed
+        last_name:
+          type: string
+          maxLength: 100
+          description: Customer's last name
+          example: Al-Rashid
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          description: Unique email address
+          example: ahmed.rashid@example.com
+        phone:
+          type: string
+          maxLength: 20
+          nullable: true
+          description: Phone number
+          example: "+971-50-555-1003"
+        address:
+          type: string
+          nullable: true
+          description: Street address
+          example: 789 Palm Jumeirah
+        city:
+          type: string
+          maxLength: 100
+          nullable: true
+          description: City
+          example: Dubai
+        country:
+          type: string
+          maxLength: 100
+          nullable: true
+          description: Country
+          example: UAE
+        created_at:
+          type: string
+          format: date-time
+          description: Record creation timestamp
+          example: "2026-02-10T07:09:32.000Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+          example: "2026-02-10T07:09:32.000Z"
+      required:
+        - id
+        - first_name
+        - last_name
+        - email
+        - created_at
+        - updated_at
+
+    CustomerCreate:
+      type: object
+      properties:
+        first_name:
+          type: string
+          maxLength: 100
+          description: Customer's first name
+          example: Ahmed
+        last_name:
+          type: string
+          maxLength: 100
+          description: Customer's last name
+          example: Al-Rashid
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          description: Unique email address
+          example: ahmed.rashid@example.com
+        phone:
+          type: string
+          maxLength: 20
+          description: Phone number
+          example: "+971-50-555-1003"
+        address:
+          type: string
+          description: Street address
+          example: 789 Palm Jumeirah
+        city:
+          type: string
+          maxLength: 100
+          description: City
+          example: Dubai
+        country:
+          type: string
+          maxLength: 100
+          description: Country
+          example: UAE
+      required:
+        - first_name
+        - last_name
+        - email
+
+    CustomerUpdate:
+      type: object
+      description: At least one field must be provided. Email cannot be updated.
+      properties:
+        first_name:
+          type: string
+          maxLength: 100
+          description: Customer's first name
+          example: Jane
+        last_name:
+          type: string
+          maxLength: 100
+          description: Customer's last name
+          example: Doe
+        phone:
+          type: string
+          maxLength: 20
+          description: Phone number
+          example: "+971-55-555-9999"
+        address:
+          type: string
+          description: Street address
+          example: 456 Oak Ave
+        city:
+          type: string
+          maxLength: 100
+          description: City
+          example: Abu Dhabi
+        country:
+          type: string
+          maxLength: 100
+          description: Country
+          example: UAE
+      minProperties: 1
+
+    CustomerListResponse:
+      type: object
+      properties:
+        customers:
+          type: array
+          items:
+            $ref: '#/components/schemas/Customer'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          description: Current page number
+          example: 1
+        limit:
+          type: integer
+          description: Items per page
+          example: 10
+        total_items:
+          type: integer
+          description: Total number of customers
+          example: 20
+        total_pages:
+          type: integer
+          description: Total number of pages
+          example: 2
+        has_next:
+          type: boolean
+          description: Whether a next page exists
+          example: true
+        has_prev:
+          type: boolean
+          description: Whether a previous page exists
+          example: false
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, unhealthy]
+          description: Overall service status
+        service:
+          type: string
+          description: Service name
+          example: customer-api
+        database:
+          type: string
+          enum: [connected, disconnected]
+          description: Database connectivity status
+        error:
+          type: string
+          nullable: true
+          description: Error message (only when unhealthy)
+        timestamp:
+          type: string
+          format: date-time
+          description: Health check timestamp
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Customer not found"
+        details:
+          type: string
+          nullable: true
+          description: Additional error details (only in 500 errors)
+
+    DeleteResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Success message
+          example: "Customer deleted successfully"
+        id:
+          type: integer
+          description: ID of the deleted customer
+          example: 1

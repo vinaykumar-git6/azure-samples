@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Customer Portal - DP World</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #f0f2f5; color: #1a1a2e; min-height: 100vh; }
+
+    .header {
+      background: linear-gradient(135deg, #0a1628 0%, #1a365d 50%, #2563eb 100%);
+      color: white; padding: 20px 32px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    }
+    .header-content { max-width: 1000px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+    .header h1 { font-size: 22px; font-weight: 700; }
+    .header p { font-size: 13px; opacity: 0.7; margin-top: 2px; }
+    .status { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 6px 14px; background: rgba(255,255,255,0.1); border-radius: 20px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .dot.ok { background: #22c55e; box-shadow: 0 0 8px rgba(34,197,94,0.6); }
+    .dot.err { background: #ef4444; }
+
+    .main { max-width: 1000px; margin: 32px auto; padding: 0 24px; }
+
+    .card {
+      background: white; border-radius: 16px; overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04);
+      border: 1px solid #e5e7eb; margin-bottom: 20px;
+    }
+    .card-header { padding: 18px 24px; border-bottom: 1px solid #f3f4f6; font-size: 16px; font-weight: 700; color: #111827; display: flex; align-items: center; gap: 10px; }
+    .card-header span { font-size: 12px; color: #6b7280; font-weight: 400; }
+
+    table { width: 100%; border-collapse: collapse; }
+    thead th { padding: 12px 20px; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; background: #f9fafb; border-bottom: 2px solid #e5e7eb; }
+    tbody td { padding: 14px 20px; font-size: 14px; border-bottom: 1px solid #f3f4f6; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover { background: #f8faff; }
+    .name { font-weight: 600; color: #111827; }
+    .email { color: #6b7280; font-size: 13px; }
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 6px; font-size: 12px; font-weight: 500; background: #eff6ff; color: #2563eb; }
+
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 20px 24px; }
+    .detail-item label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #9ca3af; font-weight: 600; }
+    .detail-item p { font-size: 14px; font-weight: 500; color: #111827; margin-top: 3px; }
+    .avatar { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; color: white; background: linear-gradient(135deg, #2563eb, #7c3aed); }
+    .cust-header { display: flex; align-items: center; gap: 14px; padding: 20px 24px; border-bottom: 1px solid #f3f4f6; }
+    .cust-header h3 { font-size: 16px; font-weight: 700; }
+    .cust-header p { font-size: 13px; color: #6b7280; }
+
+    .loading { text-align: center; padding: 60px; color: #6b7280; }
+    .spinner { width: 36px; height: 36px; border: 3px solid #e5e7eb; border-top-color: #2563eb; border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block; margin-bottom: 12px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .error-box { text-align: center; padding: 40px; color: #dc2626; }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="header-content">
+      <div>
+        <h1>&#128100; Customer Portal</h1>
+        <p>DP World — Top 5 Customers</p>
+      </div>
+      <div class="status" id="health-status">
+        <span class="dot" id="health-dot"></span>
+        <span id="health-text">Checking...</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="main" id="app">
+    <div class="loading"><div class="spinner"></div><p>Loading customers...</p></div>
+  </div>
+
+  <script>
+    const API_BASE = '/api';
+
+    async function checkHealth() {
+      try {
+        const res = await fetch('/health');
+        const data = await res.json();
+        document.getElementById('health-dot').className = 'dot ' + (data.status === 'healthy' ? 'ok' : 'err');
+        document.getElementById('health-text').textContent = data.status === 'healthy' ? 'API Online' : 'API Offline';
+      } catch {
+        document.getElementById('health-dot').className = 'dot err';
+        document.getElementById('health-text').textContent = 'API Offline';
+      }
+    }
+
+    async function loadCustomers() {
+      const app = document.getElementById('app');
+      try {
+        const res = await fetch(API_BASE + '/customers?page=1&limit=5');
+        if (!res.ok) throw new Error('API returned ' + res.status);
+        const data = await res.json();
+        const customers = data.customers || [];
+
+        if (customers.length === 0) {
+          app.innerHTML = '<div class="error-box"><p>No customers found.</p></div>';
+          return;
+        }
+
+        // Summary table
+        let html = '<div class="card">';
+        html += '<div class="card-header">Customer List <span>Showing top 5 of ' + (data.pagination?.total_items || customers.length) + '</span></div>';
+        html += '<table><thead><tr><th>ID</th><th>Customer</th><th>Phone</th><th>City</th><th>Country</th></tr></thead><tbody>';
+        customers.forEach(function(c) {
+          html += '<tr>';
+          html += '<td><span class="badge">#' + c.id + '</span></td>';
+          html += '<td><div class="name">' + esc(c.first_name) + ' ' + esc(c.last_name) + '</div><div class="email">' + esc(c.email) + '</div></td>';
+          html += '<td>' + esc(c.phone || '—') + '</td>';
+          html += '<td>' + esc(c.city || '—') + '</td>';
+          html += '<td>' + esc(c.country || '—') + '</td>';
+          html += '</tr>';
+        });
+        html += '</tbody></table></div>';
+
+        // Detail cards for each customer
+        customers.forEach(function(c) {
+          var initials = (c.first_name?.[0] || '') + (c.last_name?.[0] || '');
+          var created = c.created_at ? new Date(c.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+          var updated = c.updated_at ? new Date(c.updated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+
+          html += '<div class="card">';
+          html += '<div class="cust-header">';
+          html += '<div class="avatar">' + esc(initials) + '</div>';
+          html += '<div><h3>' + esc(c.first_name) + ' ' + esc(c.last_name) + '</h3><p>' + esc(c.email) + '</p></div>';
+          html += '</div>';
+          html += '<div class="detail-grid">';
+          html += '<div class="detail-item"><label>Customer ID</label><p>#' + c.id + '</p></div>';
+          html += '<div class="detail-item"><label>Phone</label><p>' + esc(c.phone || '—') + '</p></div>';
+          html += '<div class="detail-item"><label>Address</label><p>' + esc(c.address || '—') + '</p></div>';
+          html += '<div class="detail-item"><label>City</label><p>' + esc(c.city || '—') + '</p></div>';
+          html += '<div class="detail-item"><label>Country</label><p>' + esc(c.country || '—') + '</p></div>';
+          html += '<div class="detail-item"><label>Created</label><p>' + created + '</p></div>';
+          html += '</div></div>';
+        });
+
+        app.innerHTML = html;
+      } catch (err) {
+        app.innerHTML = '<div class="error-box"><p>Failed to load customers: ' + esc(err.message) + '</p></div>';
+      }
+    }
+
+    function esc(s) {
+      var d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    checkHealth();
+    loadCustomers();
+  </script>
+</body>
+</html>

@@ -1,0 +1,225 @@
+<!--
+  APIM Policy for MCP tools/call on "Customer REST API" (customer-rest-api)
+  ==========================================================================
+  Applied at: API-level (all operations under /mcp)
+  MCP Endpoint: https://apim-dev-0603.azure-api.net/customer/mcp
+
+  What this does:
+    1. Intercepts the MCP JSON-RPC "tools/call" request from Azure AI Foundry.
+    2. Extracts customerId from params.arguments.customerId in the request body.
+    3. Calls the real backend: GET /api/customers/{customerId}
+    4. Wraps the backend response back into MCP JSON-RPC response format.
+    5. Returns immediately — the backend base policy is bypassed.
+
+  MCP Request body structure (sent by Foundry):
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "tools/call",
+      "params": {
+        "name": "getCustomerById",
+        "arguments": {
+          "customerId": "C001"
+        }
+      }
+    }
+
+  MCP Response format expected by Foundry:
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "result": {
+        "content": [{ "type": "text", "text": "<backend JSON as string>" }],
+        "isError": false
+      }
+    }
+-->
+<policies>
+  <inbound>
+    <base />
+
+    <!-- Only intercept MCP tools/call requests -->
+    <choose>
+      <when condition="@{
+        var body = context.Request.Body.As<JObject>(preserveContent: true);
+        return body != null
+               && (string)body["method"] == &quot;tools/call&quot;
+               && (string)body["params"]?["name"] == &quot;getCustomerById&quot;;
+      }">
+
+        <!-- Step 1: Extract fields from the incoming MCP request -->
+        <set-variable name="mcpRequestId"
+                      value="@{
+                        var body = context.Request.Body.As<JObject>(preserveContent: true);
+                        return body["id"]?.ToString() ?? "1";
+                      }" />
+
+        <set-variable name="customerId"
+                      value="@{
+                        var body = context.Request.Body.As<JObject>(preserveContent: true);
+                        return (string)body["params"]["arguments"]["customerId"];
+                      }" />
+
+        <!-- Step 2: Validate customerId was provided -->
+        <choose>
+          <when condition="@(string.IsNullOrEmpty((string)context.Variables["customerId"]))">
+            <return-response>
+              <set-status code="200" reason="OK" />
+              <set-header name="Content-Type" exists-action="override">
+                <value>text/event-stream</value>
+              </set-header>
+              <set-header name="Cache-Control" exists-action="override">
+                <value>no-cache</value>
+              </set-header>
+              <set-body>@{
+                long n;
+                var rawId = (string)context.Variables["mcpRequestId"];
+                JToken reqId = long.TryParse(rawId, out n) ? (JToken)n : (JToken)rawId;
+                var err = new JObject(
+                  new JProperty("jsonrpc", "2.0"),
+                  new JProperty("id", reqId),
+                  new JProperty("error", new JObject(
+                    new JProperty("code", -32602),
+                    new JProperty("message", "Invalid params: customerId is required")
+                  ))
+                );
+                return "data: " + err.ToString(Newtonsoft.Json.Formatting.None) + "\n\n";
+              }</set-body>
+            </return-response>
+          </when>
+        </choose>
+
+        <!-- Step 3: Call the real backend GET /api/customers/{customerId} -->
+        <send-request mode="new" response-variable-name="backendResponse" timeout="30" ignore-error="false">
+          <set-url>@(context.Api.ServiceUrl.ToString().TrimEnd('/') + "/api/customers/" + (string)context.Variables["customerId"])</set-url>
+          <set-method>GET</set-method>
+          <set-header name="Accept" exists-action="override">
+            <value>application/json</value>
+          </set-header>
+          <!-- Forward subscription key if backend requires it -->
+          <set-header name="Ocp-Apim-Subscription-Key" exists-action="skip">
+            <value>@(context.Request.Headers.GetValueOrDefault("Ocp-Apim-Subscription-Key", ""))</value>
+          </set-header>
+        </send-request>
+
+        <!-- Step 4: Return MCP-formatted response as SSE event stream
+             Streamable HTTP transport (used by Azure AI Foundry) expects:
+               Content-Type: text/event-stream
+               Body:         data: {json-rpc-object}\n\n
+             Plain application/json is NOT recognized — client reports
+             "completed without a reply to request with ID: N"
+        -->
+        <return-response>
+          <set-status code="200" reason="OK" />
+          <set-header name="Content-Type" exists-action="override">
+            <value>text/event-stream</value>
+          </set-header>
+          <set-header name="Cache-Control" exists-action="override">
+            <value>no-cache</value>
+          </set-header>
+          <set-header name="Connection" exists-action="override">
+            <value>keep-alive</value>
+          </set-header>
+          <set-body>@{
+            var backendResp = ((IResponse)context.Variables["backendResponse"]);
+            var statusCode  = backendResp.StatusCode;
+            var bodyText    = backendResp.Body.As<string>();
+
+            // Parse mcpRequestId as JToken to preserve original type (number vs string)
+            JToken requestId;
+            try {
+              var rawId = (string)context.Variables["mcpRequestId"];
+              // Try to keep as number if it was a number
+              long numId;
+              requestId = long.TryParse(rawId, out numId) ? (JToken)numId : (JToken)rawId;
+            } catch {
+              requestId = 1;
+            }
+
+            // Build the MCP JSON-RPC response object
+            var mcpResponse = new JObject(
+              new JProperty("jsonrpc", "2.0"),
+              new JProperty("id", requestId)
+            );
+
+            if (statusCode == 200)
+            {
+              mcpResponse["result"] = new JObject(
+                new JProperty("content", new JArray(
+                  new JObject(
+                    new JProperty("type", "text"),
+                    new JProperty("text", bodyText)
+                  )
+                )),
+                new JProperty("isError", false)
+              );
+            }
+            else if (statusCode == 404)
+            {
+              mcpResponse["result"] = new JObject(
+                new JProperty("content", new JArray(
+                  new JObject(
+                    new JProperty("type", "text"),
+                    new JProperty("text", "Customer '" + (string)context.Variables["customerId"] + "' not found.")
+                  )
+                )),
+                new JProperty("isError", true)
+              );
+            }
+            else
+            {
+              mcpResponse["error"] = new JObject(
+                new JProperty("code", -32603),
+                new JProperty("message", "Backend error " + statusCode + ": " + bodyText)
+              );
+            }
+
+            // SSE format: "data: {json}\n\n"
+            return "data: " + mcpResponse.ToString(Newtonsoft.Json.Formatting.None) + "\n\n";
+          }</set-body>
+        </return-response>
+
+      </when>
+      <!-- All other MCP methods (tools/list, initialize, etc.) pass through normally -->
+    </choose>
+
+  </inbound>
+  <backend>
+    <base />
+  </backend>
+  <outbound>
+    <base />
+  </outbound>
+  <on-error>
+    <base />
+    <!-- Return MCP-compatible error on unexpected failures (SSE format) -->
+    <return-response>
+      <set-status code="200" reason="OK" />
+      <set-header name="Content-Type" exists-action="override">
+        <value>text/event-stream</value>
+      </set-header>
+      <set-header name="Cache-Control" exists-action="override">
+        <value>no-cache</value>
+      </set-header>
+      <set-body>@{
+        JToken reqId;
+        if (context.Variables.ContainsKey("mcpRequestId")) {
+          long n;
+          var rawId = (string)context.Variables["mcpRequestId"];
+          reqId = long.TryParse(rawId, out n) ? (JToken)n : (JToken)rawId;
+        } else {
+          reqId = (JToken)"unknown";
+        }
+        var err = new JObject(
+          new JProperty("jsonrpc", "2.0"),
+          new JProperty("id", reqId),
+          new JProperty("error", new JObject(
+            new JProperty("code", -32603),
+            new JProperty("message", context.LastError.Message)
+          ))
+        );
+        return "data: " + err.ToString(Newtonsoft.Json.Formatting.None) + "\n\n";
+      }</set-body>
+    </return-response>
+  </on-error>
+</policies>

@@ -1,0 +1,143 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: events-service
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: events-service-sa
+  namespace: events-service
+  annotations:
+    azure.workload.identity/client-id: "${MANAGED_IDENTITY_CLIENT_ID}"
+  labels:
+    azure.workload.identity/use: "true"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: events-service
+  namespace: events-service
+  labels:
+    app: events-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: events-service
+  template:
+    metadata:
+      labels:
+        app: events-service
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: events-service-sa
+      containers:
+      - name: events-service
+        image: ${ACR_NAME}.azurecr.io/events-service:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        # Event Hub Configuration
+        - name: EVENTHUB_NAMESPACE
+          valueFrom:
+            configMapKeyRef:
+              name: events-service-config
+              key: eventhub-namespace
+        - name: EVENTHUB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: events-service-config
+              key: eventhub-name
+        - name: CONSUMER_GROUP
+          value: "$Default"
+        
+        # PostgreSQL Configuration
+        - name: POSTGRES_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: events-service-config
+              key: postgres-host
+        - name: POSTGRES_DATABASE
+          valueFrom:
+            configMapKeyRef:
+              name: events-service-config
+              key: postgres-database
+        - name: POSTGRES_USER
+          valueFrom:
+            configMapKeyRef:
+              name: events-service-config
+              key: postgres-user
+        
+        # Key Vault Configuration
+        - name: KEYVAULT_URL
+          valueFrom:
+            configMapKeyRef:
+              name: events-service-config
+              key: keyvault-url
+        - name: POSTGRES_PASSWORD_SECRET_NAME
+          value: "postgres-password"
+        
+        # Application Configuration
+        - name: BATCH_SIZE
+          value: "100"
+        - name: MAX_WAIT_TIME
+          value: "60"
+        
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: events-service
+  namespace: events-service
+  labels:
+    app: events-service
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: events-service
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: events-service-config
+  namespace: events-service
+data:
+  eventhub-namespace: "your-eventhub-namespace"
+  eventhub-name: "signin-events"
+  postgres-host: "your-postgres-server.postgres.database.azure.com"
+  postgres-database: "signinevents"
+  postgres-user: "adminuser"
+  keyvault-url: "https://your-keyvault.vault.azure.net/"

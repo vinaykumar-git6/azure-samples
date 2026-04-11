@@ -1,0 +1,153 @@
+openapi: 3.0.3
+info:
+  title: Customer Mock API
+  description: Mock service returning hardcoded customer information.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8000
+    description: Local development
+  - url: https://customer-mock-api.internal
+    description: Azure Container Apps (private VNet)
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      tags:
+        - Health
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: healthy
+
+  /customers:
+    get:
+      summary: Get all customers
+      operationId: getCustomers
+      tags:
+        - Customers
+      responses:
+        "200":
+          description: List of all customers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Customer"
+              example:
+                - id: 1
+                  name: Ahmed Al Mansoori
+                  email: ahmed.almansoori@example.com
+                  phone: "+971-50-1234567"
+                  city: Dubai
+                  status: active
+                - id: 2
+                  name: Sara Al Rashidi
+                  email: sara.alrashidi@example.com
+                  phone: "+971-52-2345678"
+                  city: Abu Dhabi
+                  status: active
+
+  /customers/{customer_id}:
+    get:
+      summary: Get customer by ID
+      operationId: getCustomerById
+      tags:
+        - Customers
+      parameters:
+        - name: customer_id
+          in: path
+          required: true
+          description: Unique identifier of the customer
+          schema:
+            type: integer
+            example: 1
+      responses:
+        "200":
+          description: Customer found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+              example:
+                id: 1
+                name: Ahmed Al Mansoori
+                email: ahmed.almansoori@example.com
+                phone: "+971-50-1234567"
+                city: Dubai
+                status: active
+        "404":
+          description: Customer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                detail: Customer not found
+
+components:
+  schemas:
+    Customer:
+      type: object
+      required:
+        - id
+        - name
+        - email
+        - phone
+        - city
+        - status
+      properties:
+        id:
+          type: integer
+          description: Unique customer identifier
+          example: 1
+        name:
+          type: string
+          description: Full name of the customer
+          example: Ahmed Al Mansoori
+        email:
+          type: string
+          format: email
+          description: Customer email address
+          example: ahmed.almansoori@example.com
+        phone:
+          type: string
+          description: Customer phone number
+          example: "+971-50-1234567"
+        city:
+          type: string
+          description: City of residence
+          example: Dubai
+        status:
+          type: string
+          description: Customer account status
+          enum:
+            - active
+            - inactive
+          example: active
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          example: healthy
+
+    ErrorResponse:
+      type: object
+      required:
+        - detail
+      properties:
+        detail:
+          type: string
+          example: Customer not found

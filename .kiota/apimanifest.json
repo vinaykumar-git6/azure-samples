@@ -1,0 +1,81 @@
+{
+  "applicationName": "application",
+  "apiDependencies": {
+    "test-kiota": {
+      "apiDescriptionUrl": "c:\\Users\\vinaykumar\\AppData\\Roaming\\Code\\User\\globalStorage\\apidev.azure-api-center\\azure-api-center\\bc38ea8678\\vinayorg-apic-17747494042347656227-14184462997421647925-default-tempFile.json",
+      "apiDeploymentBaseUrl": "https://apim-dev-0603.azure-api.net/banking/clients/",
+      "requests": [
+        {
+          "method": "GET",
+          "uriTemplate": "customers/me/addresses"
+        },
+        {
+          "method": "POST",
+          "uriTemplate": "customers/me/addresses"
+        },
+        {
+          "method": "GET",
+          "uriTemplate": "customers/me/preferences"
+        },
+        {
+          "method": "PUT",
+          "uriTemplate": "customers/me/preferences"
+        },
+        {
+          "method": "GET",
+          "uriTemplate": "customers/me/relationship-summary"
+        },
+        {
+          "method": "GET",
+          "uriTemplate": "customers/me"
+        },
+        {
+          "method": "PATCH",
+          "uriTemplate": "customers/me"
+        }
+      ],
+      "extensions": {
+        "x-ms-kiota-hash": "D97B4384261F85B2E252286AAD018313CB0353B2B67257C6B88DCC619973BD6B",
+        "x-ms-kiota-version": "1.30.0"
+      }
+    },
+    "APIClient": {
+      "apiDescriptionUrl": "c:\\Users\\vinaykumar\\AppData\\Roaming\\Code\\User\\globalStorage\\apidev.azure-api-center\\azure-api-center\\bc38ea8678\\vinayorg-apic-17747494042347656227-14184462997421647925-default-tempFile.json",
+      "apiDeploymentBaseUrl": "https://apim-dev-0603.azure-api.net/banking/clients/",
+      "requests": [
+        {
+          "method": "GET",
+          "uriTemplate": "customers/me/addresses"
+        },
+        {
+          "method": "POST",
+          "uriTemplate": "customers/me/addresses"
+        },
+        {
+          "method": "GET",
+          "uriTemplate": "customers/me/preferences"
+        },
+        {
+          "method": "PUT",
+          "uriTemplate": "customers/me/preferences"
+        },
+        {
+          "method": "GET",
+          "uriTemplate": "customers/me/relationship-summary"
+        },
+        {
+          "method": "GET",
+          "uriTemplate": "customers/me"
+        },
+        {
+          "method": "PATCH",
+          "uriTemplate": "customers/me"
+        }
+      ],
+      "extensions": {
+        "x-ms-kiota-hash": "CF762CDA3EEECE6BE20D3427409F506BA7955A30660CDE389CF17F906CE0087A",
+        "x-ms-kiota-version": "1.30.0"
+      }
+    }
+  }
+}

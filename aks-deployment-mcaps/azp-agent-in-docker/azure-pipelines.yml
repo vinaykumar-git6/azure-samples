@@ -1,0 +1,33 @@
+trigger:
+  - main
+
+pool:
+  name: vmssagentpool
+
+steps:
+  - script: |
+      echo "=========================================="
+      echo " Self-Hosted Agent Test Pipeline"
+      echo "=========================================="
+      echo "Agent Name:    $(Agent.Name)"
+      echo "Agent OS:      $(Agent.OS)"
+      echo "Agent Version: $(Agent.Version)"
+      echo "Hostname:      $(hostname)"
+      echo "Date:          $(date)"
+      echo "=========================================="
+    displayName: "Print Agent Info"
+
+  - script: |
+      echo "Checking installed tools..."
+      echo "--- Git ---"
+      git --version
+      echo "--- Curl ---"
+      curl --version | head -1
+      echo "--- JQ ---"
+      jq --version
+    displayName: "Check Installed Tools"
+
+  - script: |
+      echo "Hello from self-hosted AKS agent!"
+      echo "Pipeline run completed successfully ✅"
+    displayName: "Run Test Step"

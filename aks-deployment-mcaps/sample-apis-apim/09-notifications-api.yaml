@@ -1,0 +1,820 @@
+openapi: 3.0.3
+info:
+  title: Notifications API
+  description: |
+    ## Overview
+    The **Notifications API** manages banking alerts, push notifications, SMS messages,
+    and in-app notification feeds. It provides a unified notification center for all
+    banking activities and customer communications.
+
+    ## Notification Channels
+    | Channel | Description | Delivery |
+    |---------|-------------|----------|
+    | PUSH | Mobile push notifications | Real-time |
+    | SMS | Text messages | Near real-time |
+    | EMAIL | Email notifications | Near real-time |
+    | IN_APP | In-app notification feed | Real-time |
+    | WHATSAPP | WhatsApp messages | Near real-time |
+
+    ## Notification Categories
+    - **TRANSACTION** — Debits, credits, card usage alerts
+    - **SECURITY** — Login alerts, OTP, device changes
+    - **ACCOUNT** — Balance alerts, statement availability
+    - **PRODUCT** — New offers, promotions, rate changes
+    - **SERVICE** — Maintenance notices, feature updates
+    - **REMINDER** — EMI due, card payment due, document expiry
+  version: 1.0.0
+  contact:
+    name: Banking API Support
+    email: api-support@bank.com
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+servers:
+  - url: https://api.bank.com/v1
+    description: Production
+  - url: https://sandbox.api.bank.com/v1
+    description: Sandbox
+
+tags:
+  - name: Notifications
+    description: Retrieve and manage notification feeds.
+  - name: Notification Settings
+    description: Configure notification preferences per category and channel.
+
+security:
+  - BearerAuth: []
+
+paths:
+  /notifications:
+    get:
+      tags:
+        - Notifications
+      summary: List notifications
+      description: |
+        Retrieves the notification feed for the authenticated customer. Notifications
+        are sorted by timestamp (newest first) and include all channels (push, SMS,
+        email, in-app). Supports filtering by category, read status, and date range.
+      operationId: listNotifications
+      parameters:
+        - name: category
+          in: query
+          required: false
+          description: Filter by notification category.
+          schema:
+            type: string
+            enum: [TRANSACTION, SECURITY, ACCOUNT, PRODUCT, SERVICE, REMINDER]
+        - name: isRead
+          in: query
+          required: false
+          description: Filter by read/unread status.
+          schema:
+            type: boolean
+        - name: fromDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: toDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: Notifications retrieved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationListResponse'
+              example:
+                data:
+                  - notificationId: "NOTIF-2026-0214-001"
+                    category: "TRANSACTION"
+                    subcategory: "DEBIT"
+                    title: "Debit Alert"
+                    body: "AED 1,245.50 debited from account ****1234 for DEWA bill payment. Available balance: AED 45,320.50"
+                    shortBody: "AED 1,245.50 debited - DEWA"
+                    channel: "PUSH"
+                    priority: "HIGH"
+                    isRead: false
+                    isActionable: true
+                    action:
+                      type: "DEEP_LINK"
+                      target: "/transactions/TXN-2026-0214-BP001"
+                      label: "View Transaction"
+                    metadata:
+                      transactionId: "TXN-2026-0214-BP001"
+                      accountId: "ACC-2026-001234"
+                      amount: 1245.50
+                      currency: "AED"
+                    icon: "debit_alert"
+                    timestamp: "2026-02-14T10:35:05Z"
+                    expiresAt: "2026-03-14T10:35:05Z"
+                  - notificationId: "NOTIF-2026-0214-002"
+                    category: "SECURITY"
+                    subcategory: "LOGIN"
+                    title: "New Login Detected"
+                    body: "A new login was detected on your account from Chrome on Windows. If this wasn't you, please contact us immediately."
+                    shortBody: "New login - Chrome/Windows"
+                    channel: "PUSH"
+                    priority: "HIGH"
+                    isRead: true
+                    readAt: "2026-02-14T08:32:00Z"
+                    isActionable: true
+                    action:
+                      type: "DEEP_LINK"
+                      target: "/security/login-history"
+                      label: "Review Login Activity"
+                    metadata:
+                      device: "Chrome 122 on Windows 11"
+                      ipAddress: "185.***.***.42"
+                      location: "Dubai, AE"
+                    icon: "security_alert"
+                    timestamp: "2026-02-14T08:30:15Z"
+                  - notificationId: "NOTIF-2026-0214-003"
+                    category: "REMINDER"
+                    subcategory: "EMI_DUE"
+                    title: "EMI Due Reminder"
+                    body: "Your personal loan EMI of AED 4,563.28 is due on March 1, 2026. Ensure sufficient balance in account ****1234."
+                    shortBody: "EMI AED 4,563.28 due Mar 1"
+                    channel: "PUSH"
+                    priority: "MEDIUM"
+                    isRead: false
+                    isActionable: true
+                    action:
+                      type: "DEEP_LINK"
+                      target: "/loans/LN-2026-001234"
+                      label: "View Loan Details"
+                    metadata:
+                      loanId: "LN-2026-001234"
+                      emiAmount: 4563.28
+                      dueDate: "2026-03-01"
+                    icon: "reminder"
+                    timestamp: "2026-02-14T06:00:00Z"
+                  - notificationId: "NOTIF-2026-0213-001"
+                    category: "ACCOUNT"
+                    subcategory: "STATEMENT"
+                    title: "Statement Available"
+                    body: "Your February 2026 account statement for account ****1234 is now available. Download from your statement center."
+                    shortBody: "Feb 2026 statement ready"
+                    channel: "EMAIL"
+                    priority: "LOW"
+                    isRead: true
+                    readAt: "2026-02-13T12:00:00Z"
+                    isActionable: true
+                    action:
+                      type: "DEEP_LINK"
+                      target: "/accounts/ACC-2026-001234/statements"
+                      label: "View Statement"
+                    icon: "statement"
+                    timestamp: "2026-02-13T09:00:00Z"
+                  - notificationId: "NOTIF-2026-0212-001"
+                    category: "PRODUCT"
+                    subcategory: "OFFER"
+                    title: "Exclusive Pre-approved Loan Offer"
+                    body: "You are pre-approved for a personal loan up to AED 200,000 at a special rate of 4.99% p.a. Offer valid until Feb 28, 2026."
+                    shortBody: "Pre-approved loan AED 200K"
+                    channel: "IN_APP"
+                    priority: "LOW"
+                    isRead: false
+                    isActionable: true
+                    action:
+                      type: "DEEP_LINK"
+                      target: "/loans/products/LP-PERSONAL-001?offer=PRE_APPROVED"
+                      label: "View Offer"
+                    metadata:
+                      offerId: "OFFER-2026-001"
+                      maxAmount: 200000.00
+                      rate: 4.99
+                      validUntil: "2026-02-28"
+                    icon: "offer"
+                    timestamp: "2026-02-12T10:00:00Z"
+                unreadCount: 3
+                pagination:
+                  page: 1
+                  pageSize: 20
+                  totalRecords: 47
+                  totalPages: 3
+
+  /notifications/summary:
+    get:
+      tags:
+        - Notifications
+      summary: Get notification summary
+      description: |
+        Returns a summary of notification counts by category and read status.
+        Useful for displaying badge counts and notification indicators.
+      operationId: getNotificationSummary
+      responses:
+        '200':
+          description: Notification summary retrieved.
+          content:
+            application/json:
+              example:
+                data:
+                  totalUnread: 3
+                  totalNotifications: 47
+                  byCategory:
+                    - category: "TRANSACTION"
+                      total: 22
+                      unread: 1
+                    - category: "SECURITY"
+                      total: 5
+                      unread: 0
+                    - category: "ACCOUNT"
+                      total: 8
+                      unread: 0
+                    - category: "PRODUCT"
+                      total: 4
+                      unread: 1
+                    - category: "SERVICE"
+                      total: 2
+                      unread: 0
+                    - category: "REMINDER"
+                      total: 6
+                      unread: 1
+                  lastNotificationAt: "2026-02-14T10:35:05Z"
+
+  /notifications/{notificationId}/read:
+    post:
+      tags:
+        - Notifications
+      summary: Mark notification as read
+      description: Marks a single notification as read.
+      operationId: markAsRead
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "NOTIF-2026-0214-001"
+      responses:
+        '200':
+          description: Notification marked as read.
+          content:
+            application/json:
+              example:
+                data:
+                  notificationId: "NOTIF-2026-0214-001"
+                  isRead: true
+                  readAt: "2026-02-14T16:45:00Z"
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /notifications/read-all:
+    post:
+      tags:
+        - Notifications
+      summary: Mark all notifications as read
+      description: Marks all unread notifications as read for the authenticated customer.
+      operationId: markAllAsRead
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                category:
+                  type: string
+                  description: Optionally limit to a specific category.
+                  enum: [TRANSACTION, SECURITY, ACCOUNT, PRODUCT, SERVICE, REMINDER]
+            example:
+              category: "TRANSACTION"
+      responses:
+        '200':
+          description: Notifications marked as read.
+          content:
+            application/json:
+              example:
+                data:
+                  markedAsRead: 3
+                  message: "3 notifications marked as read."
+                  timestamp: "2026-02-14T16:50:00Z"
+
+  /notifications/{notificationId}:
+    delete:
+      tags:
+        - Notifications
+      summary: Delete a notification
+      description: Removes a notification from the customer's feed.
+      operationId: deleteNotification
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Notification deleted.
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /notifications/settings:
+    get:
+      tags:
+        - Notification Settings
+      summary: Get notification settings
+      description: |
+        Retrieves per-category notification settings including enabled channels,
+        quiet hours, and threshold configurations.
+      operationId: getNotificationSettings
+      responses:
+        '200':
+          description: Notification settings retrieved.
+          content:
+            application/json:
+              example:
+                data:
+                  customerId: "CUST-2026-001234"
+                  globalSettings:
+                    doNotDisturb: false
+                    quietHoursEnabled: true
+                    quietHoursStart: "23:00"
+                    quietHoursEnd: "07:00"
+                    quietHoursTimezone: "Asia/Dubai"
+                    exceptionForSecurity: true
+                  categorySettings:
+                    - category: "TRANSACTION"
+                      enabled: true
+                      channels:
+                        push: true
+                        sms: true
+                        email: false
+                        inApp: true
+                        whatsapp: false
+                      thresholds:
+                        - type: "DEBIT_AMOUNT"
+                          value: 100.00
+                          currency: "AED"
+                          description: "Alert for debits above AED 100"
+                        - type: "CREDIT_AMOUNT"
+                          value: 0.00
+                          currency: "AED"
+                          description: "Alert for all credits"
+                    - category: "SECURITY"
+                      enabled: true
+                      channels:
+                        push: true
+                        sms: true
+                        email: true
+                        inApp: true
+                        whatsapp: false
+                      canBeDisabled: false
+                      note: "Security notifications cannot be disabled."
+                    - category: "ACCOUNT"
+                      enabled: true
+                      channels:
+                        push: true
+                        sms: false
+                        email: true
+                        inApp: true
+                        whatsapp: false
+                      thresholds:
+                        - type: "LOW_BALANCE"
+                          value: 1000.00
+                          currency: "AED"
+                          description: "Alert when balance falls below AED 1,000"
+                    - category: "PRODUCT"
+                      enabled: true
+                      channels:
+                        push: true
+                        sms: false
+                        email: true
+                        inApp: true
+                        whatsapp: false
+                    - category: "SERVICE"
+                      enabled: true
+                      channels:
+                        push: true
+                        sms: false
+                        email: true
+                        inApp: true
+                        whatsapp: false
+                    - category: "REMINDER"
+                      enabled: true
+                      channels:
+                        push: true
+                        sms: true
+                        email: true
+                        inApp: true
+                        whatsapp: false
+                      reminderSettings:
+                        emiReminderDaysBefore: 3
+                        cardPaymentReminderDaysBefore: 5
+                        documentExpiryReminderDaysBefore: 30
+
+    put:
+      tags:
+        - Notification Settings
+      summary: Update notification settings
+      description: |
+        Updates notification settings for specific categories or global settings.
+        Security notifications cannot be fully disabled.
+      operationId: updateNotificationSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateNotificationSettingsRequest'
+            example:
+              globalSettings:
+                quietHoursEnabled: true
+                quietHoursStart: "22:00"
+                quietHoursEnd: "08:00"
+              categorySettings:
+                - category: "TRANSACTION"
+                  channels:
+                    whatsapp: true
+                  thresholds:
+                    - type: "DEBIT_AMOUNT"
+                      value: 500.00
+                      currency: "AED"
+                - category: "PRODUCT"
+                  enabled: false
+      responses:
+        '200':
+          description: Settings updated.
+          content:
+            application/json:
+              example:
+                data:
+                  message: "Notification settings updated successfully."
+                  updatedCategories: ["TRANSACTION", "PRODUCT"]
+                  updatedAt: "2026-02-14T17:00:00Z"
+        '400':
+          description: Cannot disable security notifications.
+
+  /notifications/register-device:
+    post:
+      tags:
+        - Notification Settings
+      summary: Register device for push notifications
+      description: |
+        Registers a mobile device for receiving push notifications. Supports
+        FCM (Android) and APNs (iOS) tokens.
+      operationId: registerDevice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterDeviceRequest'
+            example:
+              deviceToken: "fMhkQ7x4S5q..."
+              platform: "IOS"
+              deviceId: "ABC123DEF456"
+              deviceModel: "iPhone 15 Pro"
+              osVersion: "iOS 19.2"
+              appVersion: "5.2.0"
+      responses:
+        '200':
+          description: Device registered.
+          content:
+            application/json:
+              example:
+                data:
+                  deviceId: "ABC123DEF456"
+                  platform: "IOS"
+                  registered: true
+                  message: "Device registered for push notifications."
+                  registeredAt: "2026-02-14T17:10:00Z"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    NotificationListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Notification'
+        unreadCount:
+          type: integer
+          description: Total unread notifications.
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    Notification:
+      type: object
+      description: A customer notification.
+      properties:
+        notificationId:
+          type: string
+          description: Unique notification identifier.
+          example: "NOTIF-2026-0214-001"
+        category:
+          type: string
+          description: Notification category.
+          enum: [TRANSACTION, SECURITY, ACCOUNT, PRODUCT, SERVICE, REMINDER]
+          example: "TRANSACTION"
+        subcategory:
+          type: string
+          description: Specific notification type within category.
+          example: "DEBIT"
+        title:
+          type: string
+          description: Short notification title.
+          maxLength: 100
+          example: "Debit Alert"
+        body:
+          type: string
+          description: Full notification message.
+          maxLength: 500
+          example: "AED 1,245.50 debited from account ****1234"
+        shortBody:
+          type: string
+          description: Abbreviated message for compact display (smartwatch, etc.).
+          maxLength: 100
+          example: "AED 1,245.50 debited - DEWA"
+        channel:
+          type: string
+          description: Channel through which the notification was delivered.
+          enum: [PUSH, SMS, EMAIL, IN_APP, WHATSAPP]
+          example: "PUSH"
+        priority:
+          type: string
+          description: |
+            Notification priority:
+            - `CRITICAL` — Security threats, fraud alerts
+            - `HIGH` — Transaction alerts, OTPs
+            - `MEDIUM` — Reminders, account updates
+            - `LOW` — Offers, statements, informational
+          enum: [CRITICAL, HIGH, MEDIUM, LOW]
+          example: "HIGH"
+        isRead:
+          type: boolean
+          description: Whether the customer has read this notification.
+          example: false
+        readAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when notification was read.
+        isActionable:
+          type: boolean
+          description: Whether the notification has an associated action.
+          example: true
+        action:
+          type: object
+          nullable: true
+          description: Action associated with the notification.
+          properties:
+            type:
+              type: string
+              description: Type of action.
+              enum: [DEEP_LINK, URL, CALL, REPLY]
+            target:
+              type: string
+              description: Deep link path, URL, or phone number.
+            label:
+              type: string
+              description: Action button label.
+        metadata:
+          type: object
+          nullable: true
+          description: Additional context data specific to the notification type.
+          additionalProperties: true
+        icon:
+          type: string
+          description: Icon identifier for display.
+          example: "debit_alert"
+        timestamp:
+          type: string
+          format: date-time
+          description: When the notification was created/sent.
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the notification expires and will be auto-deleted.
+
+    UpdateNotificationSettingsRequest:
+      type: object
+      properties:
+        globalSettings:
+          type: object
+          properties:
+            doNotDisturb:
+              type: boolean
+            quietHoursEnabled:
+              type: boolean
+            quietHoursStart:
+              type: string
+              description: Time in HH:mm format.
+              pattern: "^\\d{2}:\\d{2}$"
+            quietHoursEnd:
+              type: string
+              pattern: "^\\d{2}:\\d{2}$"
+            quietHoursTimezone:
+              type: string
+              example: "Asia/Dubai"
+            exceptionForSecurity:
+              type: boolean
+        categorySettings:
+          type: array
+          items:
+            type: object
+            required:
+              - category
+            properties:
+              category:
+                type: string
+                enum: [TRANSACTION, SECURITY, ACCOUNT, PRODUCT, SERVICE, REMINDER]
+              enabled:
+                type: boolean
+              channels:
+                type: object
+                properties:
+                  push:
+                    type: boolean
+                  sms:
+                    type: boolean
+                  email:
+                    type: boolean
+                  inApp:
+                    type: boolean
+                  whatsapp:
+                    type: boolean
+              thresholds:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                    value:
+                      type: number
+                      format: double
+                    currency:
+                      type: string
+
+    RegisterDeviceRequest:
+      type: object
+      required:
+        - deviceToken
+        - platform
+        - deviceId
+      properties:
+        deviceToken:
+          type: string
+          description: FCM or APNs device token for push notifications.
+        platform:
+          type: string
+          description: Mobile platform.
+          enum: [IOS, ANDROID, HUAWEI]
+          example: "IOS"
+        deviceId:
+          type: string
+          description: Unique device identifier.
+        deviceModel:
+          type: string
+          description: Device model name.
+          example: "iPhone 15 Pro"
+        osVersion:
+          type: string
+          description: Operating system version.
+          example: "iOS 19.2"
+        appVersion:
+          type: string
+          description: Banking app version.
+          example: "5.2.0"
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalRecords:
+          type: integer
+        totalPages:
+          type: integer
+
+    ErrorResponse:
+      type: object
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        traceId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+  responses:
+    BadRequest:
+      description: The request was invalid or cannot be processed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/bad-request"
+            title: "Bad Request"
+            status: 400
+            detail: "Cannot disable security notifications. These are mandatory for account safety."
+            traceId: "trace-400-notif-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    Unauthorized:
+      description: Authentication failed. The access token is missing, expired, or invalid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/unauthorized"
+            title: "Unauthorized"
+            status: 401
+            detail: "The access token has expired. Please obtain a new token."
+            traceId: "trace-401-notif-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    Forbidden:
+      description: The authenticated user does not have permission to access this resource.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/forbidden"
+            title: "Forbidden"
+            status: 403
+            detail: "You do not have permission to manage notifications for this customer."
+            traceId: "trace-403-notif-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    NotFound:
+      description: The requested resource was not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/not-found"
+            title: "Resource Not Found"
+            status: 404
+            detail: "The requested notification or device was not found."
+            traceId: "trace-404-notif-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    TooManyRequests:
+      description: Rate limit exceeded. Retry after the specified duration.
+      headers:
+        Retry-After:
+          description: Number of seconds to wait before retrying.
+          schema:
+            type: integer
+            example: 60
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/rate-limit"
+            title: "Too Many Requests"
+            status: 429
+            detail: "Rate limit exceeded. Please retry after 60 seconds."
+            traceId: "trace-429-notif-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    InternalServerError:
+      description: An unexpected error occurred on the server.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/internal"
+            title: "Internal Server Error"
+            status: 500
+            detail: "An unexpected error occurred. Please contact support with the trace ID."
+            traceId: "trace-500-notif-001"
+            timestamp: "2026-02-14T10:30:00Z"

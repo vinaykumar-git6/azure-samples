@@ -1,0 +1,89 @@
+# ---------------------------------------------------------------
+# Karpenter NodePool for AKS NAP
+# E-series VMs | amd64 | High Priority (weight: 100)
+# ---------------------------------------------------------------
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: e-series-nodepool
+  annotations:
+    kubernetes.io/description: "High-priority NodePool for memory-optimized E-series amd64 nodes"
+spec:
+  # Higher weight = higher priority; Karpenter picks this pool first
+  weight: 100
+
+  template:
+    metadata:
+      labels:
+        nodepool: e-series
+        workload-type: memory-optimized
+    spec:
+      # Reference to the AKS-specific node class
+      nodeClassRef:
+        group: karpenter.azure.com
+        kind: AKSNodeClass
+        name: e-series-nodeclass
+
+      # Taints to ensure only pods that tolerate this pool land here
+      # Remove if you want general scheduling
+      # taints:
+      #   - key: workload-type
+      #     value: memory-optimized
+      #     effect: NoSchedule
+
+      requirements:
+        # Architecture: amd64 only
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["amd64"]
+
+        # E-series family (memory optimized): E2s_v5, E4s_v5, E8s_v5, E16s_v5, etc.
+        - key: karpenter.azure.com/sku-family
+          operator: In
+          values: ["E"]
+
+        # CPU range: 2–16 vCPUs
+        - key: karpenter.azure.com/sku-cpu
+          operator: In
+          values: ["2", "4", "8", "16"]
+
+        # Only use v5 generation for best price/performance
+        - key: karpenter.azure.com/sku-version
+          operator: In
+          values: ["5"]
+
+        # On-demand nodes only (remove to allow spot)
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["on-demand"]
+
+        # OS type
+        - key: kubernetes.io/os
+          operator: In
+          values: ["linux"]
+
+  # Scale limits for this pool
+  limits:
+    cpu: "64"
+    memory: "512Gi"
+
+  # Disruption / scale-down policy
+  disruption:
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: 5m
+---
+# ---------------------------------------------------------------
+# AKSNodeClass — OS disk and node configuration
+# ---------------------------------------------------------------
+apiVersion: karpenter.azure.com/v1beta1
+kind: AKSNodeClass
+metadata:
+  name: e-series-nodeclass
+  annotations:
+    kubernetes.io/description: "AKS node config for E-series high-priority pool"
+spec:
+  # Use the latest Azure Linux (Mariner) image for best AKS support
+  imageFamily: AzureLinux
+
+  # OS disk: 128 GiB premium SSD
+  osDiskSizeGB: 128

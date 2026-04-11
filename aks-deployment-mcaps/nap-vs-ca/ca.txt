@@ -1,0 +1,9 @@
+--enable-cluster-autoscaler 
+
+ --disable-cluster-autoscaler
+
+ Create an AKS cluster using the az aks create command and set the cluster autoscaler profile using the cluster-autoscaler-profile parameter.
+
+ kubectl scale deployment customer-api --replicas=25 -n dpworld ## scale out
+
+ kubectl scale deployment customer-api --replicas=2 -n dpworld ## scale in

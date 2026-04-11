@@ -1,0 +1,39 @@
+## for l7 policy Advanced Container Networking Services (ACNS) to be enabled
+##  az aks update --name aks-vk-with-cilium --resource-group azure-vk-rg --enable-acns
+## 
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: customer-api-block-frontend
+  namespace: dpworld
+spec:
+  # Apply to customer-api pods
+  endpointSelector:
+    matchLabels:
+      app: customer-api
+  ingress:
+    # Rule 1: customer-frontend can call GET on health and customers endpoints
+    - fromEndpoints:
+        - matchLabels:
+            app: customer-frontend
+      toPorts:
+        - ports:
+            - port: "5000"
+              protocol: TCP
+          rules:
+            http:
+              - method: GET
+                path: "/health"
+              - method: GET
+                path: "/api/customers.*"
+    # Rule 2: All other pods get full access to customer-api on port 5000
+    - fromEndpoints:
+        - matchExpressions:
+            - key: app
+              operator: NotIn
+              values:
+                - customer-frontend
+      toPorts:
+        - ports:
+            - port: "5000"
+              protocol: TCP

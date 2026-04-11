@@ -1,0 +1,1065 @@
+openapi: 3.0.3
+info:
+  title: Accounts Management API
+  description: |
+    ## Overview
+    The **Accounts Management API** provides comprehensive access to banking account information and operations.
+    It allows authorized clients to retrieve account details, balances, statements, and manage account preferences.
+
+    ## Authentication
+    All endpoints require a valid OAuth 2.0 Bearer token. Tokens can be obtained via the `/oauth2/token` endpoint
+    using client credentials or authorization code flow.
+
+    ## Rate Limiting
+    - **Standard Tier**: 100 requests per minute
+    - **Premium Tier**: 1,000 requests per minute
+
+    ## Pagination
+    List endpoints support cursor-based pagination using `page` and `pageSize` query parameters.
+    Response headers include `X-Total-Count` and `X-Total-Pages`.
+
+    ## Error Handling
+    All error responses follow the RFC 7807 Problem Details standard.
+
+    ## Environments
+    | Environment | Base URL |
+    |-------------|----------|
+    | Sandbox     | `https://sandbox.api.bank.com/v1` |
+    | Production  | `https://api.bank.com/v1` |
+  version: 1.0.0
+  contact:
+    name: Banking API Support
+    email: api-support@bank.com
+    url: https://developer.bank.com/support
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+  termsOfService: https://developer.bank.com/terms
+
+servers:
+  - url: https://api.bank.com/v1
+    description: Production Server
+  - url: https://sandbox.api.bank.com/v1
+    description: Sandbox / Testing Server
+
+tags:
+  - name: Accounts
+    description: Operations related to bank account management, retrieval, and lifecycle.
+  - name: Balances
+    description: Operations to retrieve real-time and historical account balances.
+  - name: Statements
+    description: Operations to retrieve and download account statements.
+
+security:
+  - BearerAuth: []
+  - ApiKeyAuth: []
+
+paths:
+  /accounts:
+    get:
+      tags:
+        - Accounts
+      summary: List all accounts
+      description: |
+        Retrieves a paginated list of all bank accounts associated with the authenticated customer.
+        Accounts are sorted by creation date in descending order. Supports filtering by account type,
+        currency, and status.
+      operationId: listAccounts
+      parameters:
+        - name: accountType
+          in: query
+          required: false
+          description: |
+            Filter accounts by type. Accepted values:
+            - `SAVINGS` - Savings account
+            - `CURRENT` - Current/Checking account
+            - `FIXED_DEPOSIT` - Fixed deposit account
+            - `SALARY` - Salary account
+            - `NRE` - Non-Resident External account
+            - `NRO` - Non-Resident Ordinary account
+          schema:
+            type: string
+            enum: [SAVINGS, CURRENT, FIXED_DEPOSIT, SALARY, NRE, NRO]
+          example: SAVINGS
+        - name: currency
+          in: query
+          required: false
+          description: Filter accounts by ISO 4217 currency code (e.g., USD, EUR, GBP, AED).
+          schema:
+            type: string
+            pattern: '^[A-Z]{3}$'
+            minLength: 3
+            maxLength: 3
+          example: USD
+        - name: status
+          in: query
+          required: false
+          description: Filter accounts by their current lifecycle status.
+          schema:
+            type: string
+            enum: [ACTIVE, DORMANT, CLOSED, FROZEN, PENDING_CLOSURE]
+          example: ACTIVE
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Successfully retrieved the list of accounts.
+          headers:
+            X-Total-Count:
+              description: Total number of accounts matching the filter criteria.
+              schema:
+                type: integer
+                example: 5
+            X-Total-Pages:
+              description: Total number of pages available.
+              schema:
+                type: integer
+                example: 1
+            X-Correlation-Id:
+              description: Unique identifier for request tracing.
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountListResponse'
+              example:
+                data:
+                  - accountId: "ACC-2026-001234"
+                    accountNumber: "1234567890123456"
+                    iban: "AE070331234567890123456"
+                    accountType: "SAVINGS"
+                    accountSubType: "PREMIUM_SAVINGS"
+                    nickname: "My Savings"
+                    currency: "AED"
+                    status: "ACTIVE"
+                    openingDate: "2023-01-15"
+                    branchCode: "001"
+                    branchName: "Downtown Branch"
+                    availableBalance:
+                      amount: 125750.50
+                      currency: "AED"
+                    currentBalance:
+                      amount: 130000.00
+                      currency: "AED"
+                    interestRate: 3.75
+                    maturityDate: null
+                    jointAccountHolders: []
+                    lastTransactionDate: "2026-02-14T10:30:00Z"
+                    createdAt: "2023-01-15T09:00:00Z"
+                    updatedAt: "2026-02-14T10:30:00Z"
+                  - accountId: "ACC-2026-001235"
+                    accountNumber: "1234567890123457"
+                    iban: "AE070331234567890123457"
+                    accountType: "CURRENT"
+                    accountSubType: "BUSINESS_CURRENT"
+                    nickname: "Business Account"
+                    currency: "AED"
+                    status: "ACTIVE"
+                    openingDate: "2022-06-01"
+                    branchCode: "002"
+                    branchName: "Business District Branch"
+                    availableBalance:
+                      amount: 450320.75
+                      currency: "AED"
+                    currentBalance:
+                      amount: 455000.00
+                      currency: "AED"
+                    interestRate: 0.50
+                    maturityDate: null
+                    jointAccountHolders:
+                      - name: "Ahmed Al Mansouri"
+                        role: "CO_HOLDER"
+                    lastTransactionDate: "2026-02-13T16:45:00Z"
+                    createdAt: "2022-06-01T08:00:00Z"
+                    updatedAt: "2026-02-13T16:45:00Z"
+                pagination:
+                  page: 1
+                  pageSize: 20
+                  totalRecords: 2
+                  totalPages: 1
+                  hasNextPage: false
+                  hasPreviousPage: false
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /accounts/{accountId}:
+    get:
+      tags:
+        - Accounts
+      summary: Get account details
+      description: |
+        Retrieves comprehensive details of a specific bank account identified by its unique account ID.
+        Includes balance information, interest rates, account holder details, and account metadata.
+      operationId: getAccountById
+      parameters:
+        - $ref: '#/components/parameters/AccountIdPath'
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Successfully retrieved account details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountDetailResponse'
+              example:
+                data:
+                  accountId: "ACC-2026-001234"
+                  accountNumber: "1234567890123456"
+                  iban: "AE070331234567890123456"
+                  swiftCode: "BOMLAEAD"
+                  accountType: "SAVINGS"
+                  accountSubType: "PREMIUM_SAVINGS"
+                  nickname: "My Savings"
+                  currency: "AED"
+                  status: "ACTIVE"
+                  openingDate: "2023-01-15"
+                  branchCode: "001"
+                  branchName: "Downtown Branch"
+                  availableBalance:
+                    amount: 125750.50
+                    currency: "AED"
+                  currentBalance:
+                    amount: 130000.00
+                    currency: "AED"
+                  holdAmount:
+                    amount: 4249.50
+                    currency: "AED"
+                  overdraftLimit:
+                    amount: 0.00
+                    currency: "AED"
+                  interestRate: 3.75
+                  accruedInterest:
+                    amount: 412.30
+                    currency: "AED"
+                  maturityDate: null
+                  minimumBalance:
+                    amount: 5000.00
+                    currency: "AED"
+                  jointAccountHolders: []
+                  linkedCards:
+                    - cardId: "CRD-2026-005678"
+                      cardType: "DEBIT"
+                      lastFourDigits: "4532"
+                  primaryAccountHolder:
+                    customerId: "CUST-001234"
+                    fullName: "Mohammed Al Rashid"
+                    email: "m.alrashid@email.com"
+                  lastTransactionDate: "2026-02-14T10:30:00Z"
+                  createdAt: "2023-01-15T09:00:00Z"
+                  updatedAt: "2026-02-14T10:30:00Z"
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /accounts/{accountId}/balances:
+    get:
+      tags:
+        - Balances
+      summary: Get account balances
+      description: |
+        Retrieves the real-time balance information for a specific account. Returns available balance,
+        current (ledger) balance, hold amounts, and overdraft information. Balance data is refreshed
+        in near real-time with a maximum delay of 30 seconds.
+      operationId: getAccountBalances
+      parameters:
+        - $ref: '#/components/parameters/AccountIdPath'
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Successfully retrieved account balances.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BalanceResponse'
+              example:
+                data:
+                  accountId: "ACC-2026-001234"
+                  balances:
+                    - balanceType: "AVAILABLE"
+                      amount:
+                        value: 125750.50
+                        currency: "AED"
+                      creditDebitIndicator: "CREDIT"
+                      lastUpdated: "2026-02-14T10:30:00Z"
+                    - balanceType: "CURRENT"
+                      amount:
+                        value: 130000.00
+                        currency: "AED"
+                      creditDebitIndicator: "CREDIT"
+                      lastUpdated: "2026-02-14T10:30:00Z"
+                    - balanceType: "HOLD"
+                      amount:
+                        value: 4249.50
+                        currency: "AED"
+                      creditDebitIndicator: "DEBIT"
+                      lastUpdated: "2026-02-14T10:30:00Z"
+                    - balanceType: "OVERDRAFT_AVAILABLE"
+                      amount:
+                        value: 0.00
+                        currency: "AED"
+                      creditDebitIndicator: "CREDIT"
+                      lastUpdated: "2026-02-14T10:30:00Z"
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /accounts/{accountId}/statements:
+    get:
+      tags:
+        - Statements
+      summary: List account statements
+      description: |
+        Retrieves a list of available statements for the specified account. Statements are generated
+        monthly and are available for the last 7 years. Each statement includes a summary of debits,
+        credits, opening and closing balances.
+      operationId: listAccountStatements
+      parameters:
+        - $ref: '#/components/parameters/AccountIdPath'
+        - name: fromDate
+          in: query
+          required: false
+          description: Start date for statement filter in ISO 8601 format (YYYY-MM-DD). Defaults to 6 months ago.
+          schema:
+            type: string
+            format: date
+          example: "2025-01-01"
+        - name: toDate
+          in: query
+          required: false
+          description: End date for statement filter in ISO 8601 format (YYYY-MM-DD). Defaults to today.
+          schema:
+            type: string
+            format: date
+          example: "2026-02-14"
+        - name: format
+          in: query
+          required: false
+          description: Preferred format for statement download. PDF is the default.
+          schema:
+            type: string
+            enum: [PDF, CSV, MT940, CAMT053]
+            default: PDF
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Successfully retrieved the list of statements.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatementListResponse'
+              example:
+                data:
+                  - statementId: "STMT-2026-02-001234"
+                    accountId: "ACC-2026-001234"
+                    statementDate: "2026-02-01"
+                    periodFrom: "2026-01-01"
+                    periodTo: "2026-01-31"
+                    openingBalance:
+                      amount: 118500.00
+                      currency: "AED"
+                    closingBalance:
+                      amount: 130000.00
+                      currency: "AED"
+                    totalCredits:
+                      amount: 25000.00
+                      currency: "AED"
+                      count: 3
+                    totalDebits:
+                      amount: 13500.00
+                      currency: "AED"
+                      count: 12
+                    availableFormats: ["PDF", "CSV", "MT940"]
+                    downloadUrl: "/accounts/ACC-2026-001234/statements/STMT-2026-02-001234/download"
+                    generatedAt: "2026-02-01T00:30:00Z"
+                pagination:
+                  page: 1
+                  pageSize: 20
+                  totalRecords: 14
+                  totalPages: 1
+                  hasNextPage: false
+                  hasPreviousPage: false
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /accounts/{accountId}/statements/{statementId}/download:
+    get:
+      tags:
+        - Statements
+      summary: Download account statement
+      description: |
+        Downloads a specific account statement in the requested format. The statement is returned
+        as a binary file. Supported formats include PDF, CSV, MT940, and CAMT.053.
+      operationId: downloadStatement
+      parameters:
+        - $ref: '#/components/parameters/AccountIdPath'
+        - name: statementId
+          in: path
+          required: true
+          description: Unique identifier of the statement to download.
+          schema:
+            type: string
+          example: "STMT-2026-02-001234"
+        - name: format
+          in: query
+          required: false
+          description: Desired download format. Defaults to PDF.
+          schema:
+            type: string
+            enum: [PDF, CSV, MT940, CAMT053]
+            default: PDF
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Statement file downloaded successfully.
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT Bearer token obtained via OAuth 2.0 authorization code or client credentials flow.
+        Token must include the `accounts:read` scope for read operations.
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key provided during application registration on the developer portal.
+
+  parameters:
+    AccountIdPath:
+      name: accountId
+      in: path
+      required: true
+      description: |
+        Unique identifier for the bank account. Format: `ACC-YYYY-NNNNNN` where YYYY is the year
+        and NNNNNN is a sequential number.
+      schema:
+        type: string
+        pattern: '^ACC-\d{4}-\d{6}$'
+      example: "ACC-2026-001234"
+    PageParam:
+      name: page
+      in: query
+      required: false
+      description: Page number for pagination. Starts at 1.
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      example: 1
+    PageSizeParam:
+      name: pageSize
+      in: query
+      required: false
+      description: Number of records per page. Minimum 1, maximum 100.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      example: 20
+    CorrelationId:
+      name: X-Correlation-Id
+      in: header
+      required: false
+      description: |
+        Unique identifier for end-to-end request tracing. If not provided, the server will generate one.
+        Format: UUID v4.
+      schema:
+        type: string
+        format: uuid
+      example: "550e8400-e29b-41d4-a716-446655440000"
+
+  schemas:
+    AccountListResponse:
+      type: object
+      description: Paginated response containing a list of bank accounts.
+      properties:
+        data:
+          type: array
+          description: Array of account summary objects.
+          items:
+            $ref: '#/components/schemas/AccountSummary'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    AccountDetailResponse:
+      type: object
+      description: Response containing detailed account information.
+      properties:
+        data:
+          $ref: '#/components/schemas/AccountDetail'
+
+    AccountSummary:
+      type: object
+      description: Summary view of a bank account with essential information.
+      required:
+        - accountId
+        - accountNumber
+        - accountType
+        - currency
+        - status
+      properties:
+        accountId:
+          type: string
+          description: Unique system-generated identifier for the account. Format `ACC-YYYY-NNNNNN`.
+          example: "ACC-2026-001234"
+        accountNumber:
+          type: string
+          description: Bank account number (16 digits). This is the domestic account number.
+          pattern: '^\d{16}$'
+          example: "1234567890123456"
+        iban:
+          type: string
+          description: International Bank Account Number (IBAN) following ISO 13616 standard.
+          pattern: '^[A-Z]{2}\d{2}[A-Z0-9]{4}\d{7,}$'
+          example: "AE070331234567890123456"
+        accountType:
+          type: string
+          description: |
+            The category/type of the bank account:
+            - `SAVINGS` - Interest-bearing savings account
+            - `CURRENT` - Current/Checking account for daily transactions
+            - `FIXED_DEPOSIT` - Term deposit with fixed interest rate
+            - `SALARY` - Salary crediting account
+            - `NRE` - Non-Resident External rupee account
+            - `NRO` - Non-Resident Ordinary rupee account
+          enum: [SAVINGS, CURRENT, FIXED_DEPOSIT, SALARY, NRE, NRO]
+          example: "SAVINGS"
+        accountSubType:
+          type: string
+          description: Further classification of the account type (e.g., PREMIUM_SAVINGS, BUSINESS_CURRENT).
+          example: "PREMIUM_SAVINGS"
+        nickname:
+          type: string
+          description: Customer-defined friendly name for the account. Maximum 50 characters.
+          maxLength: 50
+          example: "My Savings"
+        currency:
+          type: string
+          description: ISO 4217 three-letter currency code for the account's primary currency.
+          pattern: '^[A-Z]{3}$'
+          example: "AED"
+        status:
+          type: string
+          description: |
+            Current lifecycle status of the account:
+            - `ACTIVE` - Account is fully operational
+            - `DORMANT` - No transactions for 12+ months
+            - `CLOSED` - Account has been permanently closed
+            - `FROZEN` - Account operations are temporarily suspended
+            - `PENDING_CLOSURE` - Closure request is being processed
+          enum: [ACTIVE, DORMANT, CLOSED, FROZEN, PENDING_CLOSURE]
+          example: "ACTIVE"
+        openingDate:
+          type: string
+          format: date
+          description: Date when the account was opened, in ISO 8601 format (YYYY-MM-DD).
+          example: "2023-01-15"
+        branchCode:
+          type: string
+          description: Unique code identifying the branch where the account was opened.
+          example: "001"
+        branchName:
+          type: string
+          description: Human-readable name of the branch.
+          example: "Downtown Branch"
+        availableBalance:
+          $ref: '#/components/schemas/Money'
+          description: The amount available for immediate withdrawal or transfer.
+        currentBalance:
+          $ref: '#/components/schemas/Money'
+          description: The ledger balance including pending transactions and holds.
+        interestRate:
+          type: number
+          format: double
+          description: Current annual interest rate as a percentage (e.g., 3.75 means 3.75% per annum).
+          example: 3.75
+        maturityDate:
+          type: string
+          format: date
+          nullable: true
+          description: Maturity date for fixed deposit accounts. Null for other account types.
+          example: null
+        jointAccountHolders:
+          type: array
+          description: List of joint account holders, if any.
+          items:
+            $ref: '#/components/schemas/JointHolder'
+        lastTransactionDate:
+          type: string
+          format: date-time
+          description: Timestamp of the most recent transaction on this account in ISO 8601 format.
+          example: "2026-02-14T10:30:00Z"
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the account record was created in the system.
+          example: "2023-01-15T09:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the account record was last modified.
+          example: "2026-02-14T10:30:00Z"
+
+    AccountDetail:
+      allOf:
+        - $ref: '#/components/schemas/AccountSummary'
+        - type: object
+          description: Extended account details including SWIFT code, hold amounts, and linked cards.
+          properties:
+            swiftCode:
+              type: string
+              description: SWIFT/BIC code of the bank for international transfers.
+              pattern: '^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$'
+              example: "BOMLAEAD"
+            holdAmount:
+              $ref: '#/components/schemas/Money'
+              description: Total amount currently held/blocked on the account.
+            overdraftLimit:
+              $ref: '#/components/schemas/Money'
+              description: Maximum overdraft facility available on the account.
+            accruedInterest:
+              $ref: '#/components/schemas/Money'
+              description: Interest accrued but not yet credited to the account.
+            minimumBalance:
+              $ref: '#/components/schemas/Money'
+              description: Minimum balance required to be maintained in the account.
+            linkedCards:
+              type: array
+              description: List of debit/credit cards linked to this account.
+              items:
+                $ref: '#/components/schemas/LinkedCard'
+            primaryAccountHolder:
+              $ref: '#/components/schemas/AccountHolder'
+
+    Money:
+      type: object
+      description: Represents a monetary amount with currency. Used throughout the API for all financial values.
+      required:
+        - amount
+        - currency
+      properties:
+        amount:
+          type: number
+          format: double
+          description: The monetary value. Positive values represent credits, negative represent debits.
+          example: 125750.50
+        currency:
+          type: string
+          description: ISO 4217 three-letter currency code.
+          pattern: '^[A-Z]{3}$'
+          example: "AED"
+
+    JointHolder:
+      type: object
+      description: Information about a joint account holder.
+      properties:
+        name:
+          type: string
+          description: Full legal name of the joint account holder.
+          example: "Ahmed Al Mansouri"
+        role:
+          type: string
+          description: |
+            Role of the joint holder:
+            - `CO_HOLDER` - Equal rights on the account
+            - `AUTHORIZED_SIGNATORY` - Can authorize transactions
+            - `NOMINEE` - Nominated beneficiary
+          enum: [CO_HOLDER, AUTHORIZED_SIGNATORY, NOMINEE]
+          example: "CO_HOLDER"
+
+    LinkedCard:
+      type: object
+      description: Summary of a card linked to the account.
+      properties:
+        cardId:
+          type: string
+          description: Unique identifier of the linked card.
+          example: "CRD-2026-005678"
+        cardType:
+          type: string
+          description: Type of the linked card.
+          enum: [DEBIT, CREDIT, PREPAID]
+          example: "DEBIT"
+        lastFourDigits:
+          type: string
+          description: Last four digits of the card number for display purposes.
+          pattern: '^\d{4}$'
+          example: "4532"
+
+    AccountHolder:
+      type: object
+      description: Primary account holder information.
+      properties:
+        customerId:
+          type: string
+          description: Unique identifier of the customer.
+          example: "CUST-001234"
+        fullName:
+          type: string
+          description: Full legal name of the primary account holder.
+          example: "Mohammed Al Rashid"
+        email:
+          type: string
+          format: email
+          description: Primary email address of the account holder.
+          example: "m.alrashid@email.com"
+
+    BalanceResponse:
+      type: object
+      description: Response containing account balance information.
+      properties:
+        data:
+          type: object
+          properties:
+            accountId:
+              type: string
+              description: Account identifier.
+              example: "ACC-2026-001234"
+            balances:
+              type: array
+              description: Array of balance objects for different balance types.
+              items:
+                $ref: '#/components/schemas/Balance'
+
+    Balance:
+      type: object
+      description: Represents a specific type of balance on an account.
+      required:
+        - balanceType
+        - amount
+        - creditDebitIndicator
+      properties:
+        balanceType:
+          type: string
+          description: |
+            The type of balance:
+            - `AVAILABLE` - Funds available for immediate use
+            - `CURRENT` - Ledger/book balance
+            - `HOLD` - Funds on hold (authorization holds, blocked amounts)
+            - `OVERDRAFT_AVAILABLE` - Remaining overdraft facility
+          enum: [AVAILABLE, CURRENT, HOLD, OVERDRAFT_AVAILABLE]
+          example: "AVAILABLE"
+        amount:
+          type: object
+          properties:
+            value:
+              type: number
+              format: double
+              description: Balance amount.
+              example: 125750.50
+            currency:
+              type: string
+              description: ISO 4217 currency code.
+              example: "AED"
+        creditDebitIndicator:
+          type: string
+          description: Indicates whether the balance represents a credit or debit position.
+          enum: [CREDIT, DEBIT]
+          example: "CREDIT"
+        lastUpdated:
+          type: string
+          format: date-time
+          description: Timestamp when this balance was last calculated/refreshed.
+          example: "2026-02-14T10:30:00Z"
+
+    StatementListResponse:
+      type: object
+      description: Paginated list of account statements.
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatementSummary'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    StatementSummary:
+      type: object
+      description: Summary information about an account statement.
+      properties:
+        statementId:
+          type: string
+          description: Unique identifier for the statement. Format `STMT-YYYY-MM-NNNNNN`.
+          example: "STMT-2026-02-001234"
+        accountId:
+          type: string
+          description: Account identifier this statement belongs to.
+          example: "ACC-2026-001234"
+        statementDate:
+          type: string
+          format: date
+          description: Date the statement was generated.
+          example: "2026-02-01"
+        periodFrom:
+          type: string
+          format: date
+          description: Start date of the statement period.
+          example: "2026-01-01"
+        periodTo:
+          type: string
+          format: date
+          description: End date of the statement period.
+          example: "2026-01-31"
+        openingBalance:
+          $ref: '#/components/schemas/Money'
+          description: Account balance at the start of the statement period.
+        closingBalance:
+          $ref: '#/components/schemas/Money'
+          description: Account balance at the end of the statement period.
+        totalCredits:
+          type: object
+          description: Aggregate credit transactions during the statement period.
+          properties:
+            amount:
+              type: number
+              format: double
+              example: 25000.00
+            currency:
+              type: string
+              example: "AED"
+            count:
+              type: integer
+              description: Number of credit transactions.
+              example: 3
+        totalDebits:
+          type: object
+          description: Aggregate debit transactions during the statement period.
+          properties:
+            amount:
+              type: number
+              format: double
+              example: 13500.00
+            currency:
+              type: string
+              example: "AED"
+            count:
+              type: integer
+              description: Number of debit transactions.
+              example: 12
+        availableFormats:
+          type: array
+          description: List of formats available for downloading this statement.
+          items:
+            type: string
+            enum: [PDF, CSV, MT940, CAMT053]
+          example: ["PDF", "CSV", "MT940"]
+        downloadUrl:
+          type: string
+          description: Relative URL to download the statement.
+          example: "/accounts/ACC-2026-001234/statements/STMT-2026-02-001234/download"
+        generatedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the statement was generated.
+          example: "2026-02-01T00:30:00Z"
+
+    Pagination:
+      type: object
+      description: Pagination metadata for list responses.
+      properties:
+        page:
+          type: integer
+          description: Current page number (1-based).
+          example: 1
+        pageSize:
+          type: integer
+          description: Number of records per page.
+          example: 20
+        totalRecords:
+          type: integer
+          description: Total number of records matching the query.
+          example: 2
+        totalPages:
+          type: integer
+          description: Total number of pages.
+          example: 1
+        hasNextPage:
+          type: boolean
+          description: Whether there are more pages after the current one.
+          example: false
+        hasPreviousPage:
+          type: boolean
+          description: Whether there are pages before the current one.
+          example: false
+
+    ErrorResponse:
+      type: object
+      description: |
+        Standard error response following RFC 7807 Problem Details for HTTP APIs.
+        All error responses across the API use this consistent format.
+      required:
+        - type
+        - title
+        - status
+      properties:
+        type:
+          type: string
+          format: uri
+          description: A URI reference that identifies the problem type.
+          example: "https://api.bank.com/errors/not-found"
+        title:
+          type: string
+          description: A short, human-readable summary of the problem.
+          example: "Resource Not Found"
+        status:
+          type: integer
+          description: The HTTP status code.
+          example: 404
+        detail:
+          type: string
+          description: A human-readable explanation specific to this occurrence of the problem.
+          example: "Account with ID ACC-2026-999999 was not found."
+        instance:
+          type: string
+          description: A URI reference that identifies the specific occurrence of the problem.
+          example: "/accounts/ACC-2026-999999"
+        traceId:
+          type: string
+          description: Unique trace identifier for debugging and support purposes.
+          example: "abc123-def456-ghi789"
+        timestamp:
+          type: string
+          format: date-time
+          description: Server timestamp when the error occurred.
+          example: "2026-02-14T10:30:00Z"
+        errors:
+          type: array
+          description: Array of detailed validation errors, if applicable.
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+                description: The field that caused the error.
+                example: "accountId"
+              message:
+                type: string
+                description: Description of what is wrong with the field.
+                example: "Account ID format is invalid."
+              code:
+                type: string
+                description: Machine-readable error code for programmatic handling.
+                example: "INVALID_FORMAT"
+
+  responses:
+    Unauthorized:
+      description: Authentication failed. The access token is missing, expired, or invalid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/unauthorized"
+            title: "Unauthorized"
+            status: 401
+            detail: "The access token has expired. Please obtain a new token."
+            traceId: "trace-401-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    Forbidden:
+      description: The authenticated user does not have permission to access this resource.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/forbidden"
+            title: "Forbidden"
+            status: 403
+            detail: "You do not have permission to access accounts for this customer."
+            traceId: "trace-403-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    NotFound:
+      description: The requested resource was not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/not-found"
+            title: "Resource Not Found"
+            status: 404
+            detail: "The requested account was not found."
+            traceId: "trace-404-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    TooManyRequests:
+      description: Rate limit exceeded. Retry after the specified duration.
+      headers:
+        Retry-After:
+          description: Number of seconds to wait before retrying.
+          schema:
+            type: integer
+            example: 60
+        X-RateLimit-Limit:
+          description: Maximum number of requests allowed per window.
+          schema:
+            type: integer
+            example: 100
+        X-RateLimit-Remaining:
+          description: Number of requests remaining in the current window.
+          schema:
+            type: integer
+            example: 0
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/rate-limit"
+            title: "Too Many Requests"
+            status: 429
+            detail: "Rate limit exceeded. Please retry after 60 seconds."
+            traceId: "trace-429-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    InternalServerError:
+      description: An unexpected error occurred on the server.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/internal"
+            title: "Internal Server Error"
+            status: 500
+            detail: "An unexpected error occurred. Please contact support with the trace ID."
+            traceId: "trace-500-001"
+            timestamp: "2026-02-14T10:30:00Z"

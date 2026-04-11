@@ -1,0 +1,103 @@
+# =============================================================================
+# ANF NFS Logger — UAE North AKS (aks-vk-with-cilium)
+#
+# ANF Account : netapp-fs-uaenorth  (anf-mashreq)
+# Pool        : fs-pool-demo
+# Volume      : fs-naapp-demo-vol
+# Mount IP    : 10.0.22.4
+# Protocol    : NFSv3
+# Size        : 50 Gi
+#
+# Apply:
+#   kubectl apply -f anf-uae-logger.yaml
+# =============================================================================
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: anf-demo
+---
+# -- Static PersistentVolume pointing directly at the ANF NFS share -----------
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: anf-uae-pv
+spec:
+  capacity:
+    storage: 50Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  # storageClassName left empty → static binding only
+  storageClassName: ""
+  mountOptions:
+    - hard
+    - nfsvers=3
+    - rsize=65536
+    - wsize=65536
+    - timeo=600
+    - retrans=3
+  nfs:
+    server: 10.0.22.4
+    path: /fs-naapp-demo-vol
+---
+# -- PersistentVolumeClaim bound to the PV above ------------------------------
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: anf-uae-pvc
+  namespace: anf-demo
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  volumeName: anf-uae-pv
+  resources:
+    requests:
+      storage: 50Gi
+---
+# -- Deployment: one pod that appends a log line every 10 minutes -------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: anf-uae-logger
+  namespace: anf-demo
+  labels:
+    app: anf-uae-logger
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: anf-uae-logger
+  template:
+    metadata:
+      labels:
+        app: anf-uae-logger
+    spec:
+      containers:
+        - name: logger
+          image: <UAE-ACR-NAME>.azurecr.io/alpine:3.19
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+            - |
+              LOG_FILE=/mnt/anf/uae-north.log
+              while true; do
+                echo "$(hostname) Hello from UAE North AKS Cluster - $(date -u '+%Y-%m-%dT%H:%M:%SZ')" >> "$LOG_FILE"
+                sleep 600
+              done
+          volumeMounts:
+            - name: anf-share
+              mountPath: /mnt/anf
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "32Mi"
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
+      volumes:
+        - name: anf-share
+          persistentVolumeClaim:
+            claimName: anf-uae-pvc

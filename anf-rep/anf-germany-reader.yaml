@@ -1,0 +1,95 @@
+# =============================================================================
+# Mounts the Germany ANF NFS volume and continuously prints all file contents
+# to stdout (visible via: kubectl logs -f anf-germany-reader -n anf-demo)
+# =============================================================================
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: anf-demo
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: anf-germany-pv
+spec:
+  capacity:
+    storage: 100Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  mountOptions:
+    - hard
+    - nfsvers=3
+    - rsize=65536
+    - wsize=65536
+    - tcp
+  nfs:
+    server: 10.0.251.4       # Germany ANF mount IP
+    path: /demo-vol           # Germany ANF volume export path
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: anf-germany-pvc
+  namespace: anf-demo
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""        # static binding — no StorageClass
+  volumeName: anf-germany-pv
+  resources:
+    requests:
+      storage: 100Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: anf-germany-reader
+  namespace: anf-demo
+  labels:
+    app: anf-germany-reader
+spec:
+  nodeSelector:
+    kubernetes.io/os: linux
+  volumes:
+    - name: anf-germany
+      persistentVolumeClaim:
+        claimName: anf-germany-pvc
+  containers:
+    - name: reader
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      volumeMounts:
+        - name: anf-germany
+          mountPath: /mnt/anf
+      command:
+        - /bin/sh
+        - -c
+        - |
+          echo "=== ANF Germany volume reader started at $(date -u) ==="
+          echo "=== Mount point: /mnt/anf ==="
+          while true; do
+            echo ""
+            echo "──────────────────────────────────────────────"
+            echo "  Scan at $(date -u)"
+            echo "──────────────────────────────────────────────"
+            FILE_COUNT=$(find /mnt/anf -not -path '*/.snapshot*' -type f 2>/dev/null | wc -l)
+            echo "  Total files found: $FILE_COUNT"
+            echo ""
+            find /mnt/anf -not -path '*/.snapshot*' -type f 2>/dev/null | sort | while read filepath; do
+              echo "┌── FILE: $filepath ──────────────────────────"
+              cat "$filepath" 2>/dev/null || echo "(empty or unreadable)"
+              echo "└─────────────────────────────────────────────"
+            done
+            echo ""
+            echo "  Next scan in 60 seconds..."
+            sleep 60
+          done
+      resources:
+        requests:
+          cpu: "50m"
+          memory: "32Mi"
+        limits:
+          cpu: "100m"
+          memory: "64Mi"
+  restartPolicy: Always

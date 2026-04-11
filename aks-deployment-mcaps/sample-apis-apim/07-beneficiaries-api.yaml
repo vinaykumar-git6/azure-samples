@@ -1,0 +1,936 @@
+openapi: 3.0.3
+info:
+  title: Beneficiaries API
+  description: |
+    ## Overview
+    The **Beneficiaries API** manages payment beneficiaries (payees) for fund transfers.
+    Customers can register, validate, activate, and manage beneficiaries for domestic
+    and international transfers.
+
+    ## Beneficiary Lifecycle
+    1. **Registration** — Customer submits beneficiary details
+    2. **Validation** — Bank validates IBAN/account details via the clearing network
+    3. **Activation** — OTP verification required for security
+    4. **Active** — Beneficiary available for transfers
+    5. **Cooling Period** — Optional 24-hour cooling period before large transfers
+
+    ## Security
+    - Beneficiary registration requires OTP verification
+    - New beneficiaries have a configurable cooling period
+    - International beneficiaries undergo additional compliance screening
+  version: 1.0.0
+  contact:
+    name: Banking API Support
+    email: api-support@bank.com
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+servers:
+  - url: https://api.bank.com/v1
+    description: Production
+  - url: https://sandbox.api.bank.com/v1
+    description: Sandbox
+
+tags:
+  - name: Beneficiaries
+    description: Manage payment beneficiaries for fund transfers.
+
+security:
+  - BearerAuth: []
+
+paths:
+  /beneficiaries:
+    get:
+      tags:
+        - Beneficiaries
+      summary: List beneficiaries
+      description: |
+        Retrieves all registered beneficiaries for the authenticated customer.
+        Supports filtering by type, status, and search by name or account details.
+      operationId: listBeneficiaries
+      parameters:
+        - name: type
+          in: query
+          required: false
+          description: Filter by beneficiary type.
+          schema:
+            type: string
+            enum: [WITHIN_BANK, DOMESTIC, INTERNATIONAL]
+        - name: status
+          in: query
+          required: false
+          description: Filter by status.
+          schema:
+            type: string
+            enum: [ACTIVE, INACTIVE, PENDING_ACTIVATION, COOLING_PERIOD, BLOCKED]
+        - name: search
+          in: query
+          required: false
+          description: Search by beneficiary name, nickname, or account/IBAN.
+          schema:
+            type: string
+            minLength: 2
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Beneficiaries retrieved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BeneficiaryListResponse'
+              example:
+                data:
+                  - beneficiaryId: "BEN-2026-001234"
+                    nickname: "Ahmed Rent"
+                    fullName: "Ahmed Al Mansouri"
+                    type: "WITHIN_BANK"
+                    status: "ACTIVE"
+                    accountNumber: "****7654"
+                    iban: "AE07033900000****7654"
+                    bankName: "Al Mashreq Bank"
+                    bankSwiftCode: "BOMLAEAD"
+                    currency: "AED"
+                    lastTransferDate: "2026-02-01"
+                    lastTransferAmount:
+                      value: 3000.00
+                      currency: "AED"
+                    totalTransfers: 14
+                    isFavorite: true
+                    createdAt: "2024-12-15T10:00:00Z"
+                  - beneficiaryId: "BEN-2026-001235"
+                    nickname: "Mom - India"
+                    fullName: "Lakshmi Devi"
+                    type: "INTERNATIONAL"
+                    status: "ACTIVE"
+                    accountNumber: "****3210"
+                    iban: null
+                    bankName: "State Bank of India"
+                    bankSwiftCode: "SBININBB"
+                    bankAddress: "Main Branch, Mumbai"
+                    country: "IN"
+                    currency: "INR"
+                    routingDetails:
+                      ifscCode: "SBIN0001234"
+                    correspondentBank:
+                      bankName: "Citibank N.A."
+                      swiftCode: "CITIUS33"
+                    lastTransferDate: "2026-01-28"
+                    lastTransferAmount:
+                      value: 5000.00
+                      currency: "AED"
+                    totalTransfers: 24
+                    isFavorite: true
+                    createdAt: "2024-06-10T08:00:00Z"
+                  - beneficiaryId: "BEN-2026-001236"
+                    nickname: "Etisalat"
+                    fullName: "Emirates Telecommunications Corp"
+                    type: "DOMESTIC"
+                    status: "ACTIVE"
+                    accountNumber: "****8901"
+                    iban: "AE62019000000****8901"
+                    bankName: "Emirates NBD"
+                    bankSwiftCode: "EABOREAS"
+                    currency: "AED"
+                    lastTransferDate: "2026-01-15"
+                    lastTransferAmount:
+                      value: 450.00
+                      currency: "AED"
+                    totalTransfers: 6
+                    isFavorite: false
+                    createdAt: "2025-07-20T12:00:00Z"
+                  - beneficiaryId: "BEN-2026-001237"
+                    nickname: "John UK"
+                    fullName: "John Smith"
+                    type: "INTERNATIONAL"
+                    status: "COOLING_PERIOD"
+                    accountNumber: "****2345"
+                    iban: "GB29NWBK60161331926819"
+                    bankName: "NatWest Bank"
+                    bankSwiftCode: "NWBKGB2L"
+                    country: "GB"
+                    currency: "GBP"
+                    coolingPeriodEndsAt: "2026-02-15T10:00:00Z"
+                    totalTransfers: 0
+                    isFavorite: false
+                    createdAt: "2026-02-14T10:00:00Z"
+                pagination:
+                  page: 1
+                  pageSize: 20
+                  totalRecords: 4
+                  totalPages: 1
+
+    post:
+      tags:
+        - Beneficiaries
+      summary: Register a new beneficiary
+      description: |
+        Registers a new payment beneficiary. The IBAN/account details are validated
+        against the relevant clearing network. An OTP will be sent to the customer's
+        registered mobile for activation.
+
+        **For international beneficiaries**, additional fields such as `correspondentBank`,
+        `routingDetails`, and `purpose` may be required depending on the destination country.
+      operationId: registerBeneficiary
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterBeneficiaryRequest'
+            example:
+              fullName: "John Smith"
+              nickname: "John UK"
+              type: "INTERNATIONAL"
+              iban: "GB29NWBK60161331926819"
+              bankSwiftCode: "NWBKGB2L"
+              country: "GB"
+              currency: "GBP"
+              bankName: "NatWest Bank"
+              bankAddress: "135 Bishopsgate, London"
+              correspondentBank:
+                bankName: "Citibank N.A."
+                swiftCode: "CITIUS33"
+              address:
+                addressLine1: "45 High Street"
+                city: "London"
+                country: "GB"
+                postalCode: "EC2M 1JJ"
+              relationship: "FRIEND"
+      responses:
+        '201':
+          description: Beneficiary registered. OTP sent for activation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterBeneficiaryResponse'
+              example:
+                data:
+                  beneficiaryId: "BEN-2026-001237"
+                  status: "PENDING_ACTIVATION"
+                  validationResult:
+                    ibanValid: true
+                    bankNameConfirmed: "NatWest Bank"
+                    swiftCodeValid: true
+                  otpSentTo: "+971-50-***-4567"
+                  otpExpiresIn: 300
+                  message: "Beneficiary details validated. Please verify the OTP sent to your registered mobile."
+        '400':
+          description: Invalid beneficiary details (IBAN validation failed, etc.)
+          content:
+            application/json:
+              example:
+                type: "https://api.bank.com/errors/validation"
+                title: "Validation Error"
+                status: 400
+                detail: "IBAN check digit verification failed."
+                errors:
+                  - field: "iban"
+                    code: "INVALID_IBAN"
+                    message: "The provided IBAN failed check digit verification."
+
+  /beneficiaries/{beneficiaryId}:
+    get:
+      tags:
+        - Beneficiaries
+      summary: Get beneficiary details
+      description: Retrieves complete details of a registered beneficiary.
+      operationId: getBeneficiaryDetails
+      parameters:
+        - name: beneficiaryId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "BEN-2026-001234"
+      responses:
+        '200':
+          description: Beneficiary details retrieved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BeneficiaryDetailResponse'
+              example:
+                data:
+                  beneficiaryId: "BEN-2026-001234"
+                  nickname: "Ahmed Rent"
+                  fullName: "Ahmed Al Mansouri"
+                  type: "WITHIN_BANK"
+                  status: "ACTIVE"
+                  accountNumber: "0339-123456-7654"
+                  iban: "AE070339000001234567654"
+                  bankName: "Al Mashreq Bank"
+                  bankSwiftCode: "BOMLAEAD"
+                  currency: "AED"
+                  relationship: "LANDLORD"
+                  transferHistory:
+                    totalTransfers: 14
+                    totalAmountTransferred:
+                      value: 42000.00
+                      currency: "AED"
+                    lastTransferDate: "2026-02-01"
+                    lastTransferAmount:
+                      value: 3000.00
+                      currency: "AED"
+                    averageTransferAmount:
+                      value: 3000.00
+                      currency: "AED"
+                  limits:
+                    perTransactionLimit:
+                      value: 100000.00
+                      currency: "AED"
+                    dailyLimit:
+                      value: 200000.00
+                      currency: "AED"
+                    monthlyLimit:
+                      value: 500000.00
+                      currency: "AED"
+                  complianceStatus: "CLEARED"
+                  coolingPeriodEndsAt: null
+                  isFavorite: true
+                  createdAt: "2024-12-15T10:00:00Z"
+                  lastModifiedAt: "2025-06-01T08:00:00Z"
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - Beneficiaries
+      summary: Update beneficiary
+      description: |
+        Updates beneficiary details. Only `nickname`, `relationship`, and `isFavorite`
+        can be updated without re-verification. Changing account/IBAN details requires
+        OTP re-verification.
+      operationId: updateBeneficiary
+      parameters:
+        - name: beneficiaryId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example:
+              nickname: "Ahmed - Monthly Rent"
+              isFavorite: true
+              relationship: "LANDLORD"
+      responses:
+        '200':
+          description: Beneficiary updated.
+          content:
+            application/json:
+              example:
+                data:
+                  beneficiaryId: "BEN-2026-001234"
+                  message: "Beneficiary updated successfully."
+                  updatedAt: "2026-02-14T16:00:00Z"
+
+    delete:
+      tags:
+        - Beneficiaries
+      summary: Delete a beneficiary
+      description: |
+        Removes a beneficiary from the customer's list. Active standing instructions
+        using this beneficiary must be cancelled first.
+      operationId: deleteBeneficiary
+      parameters:
+        - name: beneficiaryId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Beneficiary deleted successfully.
+        '409':
+          description: Cannot delete — active standing instructions exist for this beneficiary.
+          content:
+            application/json:
+              example:
+                type: "https://api.bank.com/errors/conflict"
+                title: "Conflict"
+                status: 409
+                detail: "Cannot delete beneficiary with active standing instructions. Cancel SI-2026-001235 first."
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /beneficiaries/{beneficiaryId}/activate:
+    post:
+      tags:
+        - Beneficiaries
+      summary: Activate beneficiary with OTP
+      description: |
+        Activates a pending beneficiary by verifying the OTP sent during registration.
+        After activation, a cooling period may apply before large transfers are permitted.
+      operationId: activateBeneficiary
+      parameters:
+        - name: beneficiaryId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActivateBeneficiaryRequest'
+            example:
+              otp: "485271"
+      responses:
+        '200':
+          description: Beneficiary activated.
+          content:
+            application/json:
+              example:
+                data:
+                  beneficiaryId: "BEN-2026-001237"
+                  status: "COOLING_PERIOD"
+                  coolingPeriodEndsAt: "2026-02-15T16:30:00Z"
+                  coolingPeriodHours: 24
+                  message: "Beneficiary activated. A 24-hour cooling period applies before large transfers."
+        '400':
+          description: Invalid or expired OTP.
+
+  /beneficiaries/validate-iban:
+    post:
+      tags:
+        - Beneficiaries
+      summary: Validate an IBAN
+      description: |
+        Validates an IBAN without registering a beneficiary. Performs check digit
+        verification, country code validation, and bank identification.
+        For UAE IBANs, also performs name verification through the UAE Funds Transfer System.
+      operationId: validateIban
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - iban
+              properties:
+                iban:
+                  type: string
+                  description: The IBAN to validate.
+                  pattern: "^[A-Z]{2}\\d{2}[A-Z0-9]{4,30}$"
+                  example: "AE070339000001234567654"
+            example:
+              iban: "AE070339000001234567654"
+      responses:
+        '200':
+          description: IBAN validation result.
+          content:
+            application/json:
+              example:
+                data:
+                  iban: "AE070339000001234567654"
+                  isValid: true
+                  countryCode: "AE"
+                  countryName: "United Arab Emirates"
+                  bankCode: "0339"
+                  bankName: "Al Mashreq Bank"
+                  bankSwiftCode: "BOMLAEAD"
+                  branchCode: "000"
+                  branchName: "Main Branch"
+                  accountNumber: "001234567654"
+                  accountHolderName: "Ahmed Al Mansouri"
+                  ibanType: "DOMESTIC"
+                  supportedCurrencies: ["AED"]
+        '400':
+          description: Invalid IBAN format.
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    BeneficiaryListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/BeneficiarySummary'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    BeneficiarySummary:
+      type: object
+      description: Summary view of a registered beneficiary.
+      properties:
+        beneficiaryId:
+          type: string
+          description: Unique identifier for the beneficiary.
+          example: "BEN-2026-001234"
+        nickname:
+          type: string
+          description: Customer-defined friendly name for the beneficiary.
+          maxLength: 50
+          example: "Ahmed Rent"
+        fullName:
+          type: string
+          description: Full legal name of the beneficiary as per bank records.
+          example: "Ahmed Al Mansouri"
+        type:
+          type: string
+          description: |
+            Transfer type classification:
+            - `WITHIN_BANK` — Same bank transfer (instant)
+            - `DOMESTIC` — UAE interbank transfer via UAEFTS/IPP
+            - `INTERNATIONAL` — Cross-border SWIFT transfer
+          enum: [WITHIN_BANK, DOMESTIC, INTERNATIONAL]
+          example: "WITHIN_BANK"
+        status:
+          type: string
+          description: |
+            Beneficiary lifecycle status:
+            - `ACTIVE` — Ready for transfers
+            - `INACTIVE` — Deactivated by customer or system
+            - `PENDING_ACTIVATION` — OTP verification pending
+            - `COOLING_PERIOD` — Activated but in mandatory waiting period
+            - `BLOCKED` — Blocked due to compliance/fraud screening
+          enum: [ACTIVE, INACTIVE, PENDING_ACTIVATION, COOLING_PERIOD, BLOCKED]
+          example: "ACTIVE"
+        accountNumber:
+          type: string
+          description: Partially masked account number.
+          example: "****7654"
+        iban:
+          type: string
+          description: Partially masked IBAN. Null for some international beneficiaries.
+          nullable: true
+          example: "AE07033900000****7654"
+        bankName:
+          type: string
+          description: Name of the beneficiary's bank.
+          example: "Al Mashreq Bank"
+        bankSwiftCode:
+          type: string
+          description: SWIFT/BIC code of the beneficiary's bank.
+          pattern: "^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$"
+          example: "BOMLAEAD"
+        bankAddress:
+          type: string
+          description: Bank branch address (for international beneficiaries).
+          nullable: true
+        country:
+          type: string
+          description: ISO 3166-1 alpha-2 country code (for international beneficiaries).
+          nullable: true
+        currency:
+          type: string
+          description: Default transfer currency.
+          example: "AED"
+        routingDetails:
+          type: object
+          nullable: true
+          description: Country-specific routing information.
+          properties:
+            ifscCode:
+              type: string
+              description: IFSC code for Indian banks.
+            sortCode:
+              type: string
+              description: Sort code for UK banks.
+            routingNumber:
+              type: string
+              description: ABA routing number for US banks.
+            bsbCode:
+              type: string
+              description: BSB code for Australian banks.
+        correspondentBank:
+          type: object
+          nullable: true
+          description: Intermediary bank for international transfers.
+          properties:
+            bankName:
+              type: string
+            swiftCode:
+              type: string
+        lastTransferDate:
+          type: string
+          format: date
+          nullable: true
+        lastTransferAmount:
+          type: object
+          nullable: true
+          properties:
+            value:
+              type: number
+              format: double
+            currency:
+              type: string
+        totalTransfers:
+          type: integer
+          description: Total number of transfers made to this beneficiary.
+        coolingPeriodEndsAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the cooling period expires (if in cooling period).
+        isFavorite:
+          type: boolean
+          description: Whether the customer has marked this as a favorite beneficiary.
+        createdAt:
+          type: string
+          format: date-time
+
+    BeneficiaryDetailResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/BeneficiaryDetail'
+
+    BeneficiaryDetail:
+      allOf:
+        - $ref: '#/components/schemas/BeneficiarySummary'
+        - type: object
+          properties:
+            relationship:
+              type: string
+              description: Customer's relationship with the beneficiary.
+              enum: [SELF, FAMILY, FRIEND, EMPLOYER, EMPLOYEE, LANDLORD, VENDOR, OTHER]
+            transferHistory:
+              type: object
+              properties:
+                totalTransfers:
+                  type: integer
+                totalAmountTransferred:
+                  type: object
+                  properties:
+                    value:
+                      type: number
+                      format: double
+                    currency:
+                      type: string
+                lastTransferDate:
+                  type: string
+                  format: date
+                lastTransferAmount:
+                  type: object
+                  properties:
+                    value:
+                      type: number
+                      format: double
+                    currency:
+                      type: string
+                averageTransferAmount:
+                  type: object
+                  properties:
+                    value:
+                      type: number
+                      format: double
+                    currency:
+                      type: string
+            limits:
+              type: object
+              description: Transfer limits applicable for this beneficiary.
+              properties:
+                perTransactionLimit:
+                  type: object
+                  properties:
+                    value:
+                      type: number
+                      format: double
+                    currency:
+                      type: string
+                dailyLimit:
+                  type: object
+                  properties:
+                    value:
+                      type: number
+                      format: double
+                    currency:
+                      type: string
+                monthlyLimit:
+                  type: object
+                  properties:
+                    value:
+                      type: number
+                      format: double
+                    currency:
+                      type: string
+            complianceStatus:
+              type: string
+              description: Compliance/sanctions screening status.
+              enum: [CLEARED, PENDING_REVIEW, FLAGGED, BLOCKED]
+            lastModifiedAt:
+              type: string
+              format: date-time
+
+    RegisterBeneficiaryRequest:
+      type: object
+      required:
+        - fullName
+        - type
+        - currency
+      properties:
+        fullName:
+          type: string
+          description: Full legal name of the beneficiary.
+          maxLength: 100
+          example: "John Smith"
+        nickname:
+          type: string
+          description: Friendly name for easy identification.
+          maxLength: 50
+          example: "John UK"
+        type:
+          type: string
+          enum: [WITHIN_BANK, DOMESTIC, INTERNATIONAL]
+          example: "INTERNATIONAL"
+        accountNumber:
+          type: string
+          description: Account number (if IBAN not applicable).
+        iban:
+          type: string
+          description: International Bank Account Number.
+          pattern: "^[A-Z]{2}\\d{2}[A-Z0-9]{4,30}$"
+          example: "GB29NWBK60161331926819"
+        bankSwiftCode:
+          type: string
+          description: SWIFT/BIC code of the beneficiary's bank.
+          pattern: "^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$"
+          example: "NWBKGB2L"
+        bankName:
+          type: string
+          example: "NatWest Bank"
+        bankAddress:
+          type: string
+          description: Branch address of the beneficiary's bank.
+          example: "135 Bishopsgate, London"
+        country:
+          type: string
+          description: ISO 3166-1 alpha-2 code for international beneficiaries.
+          example: "GB"
+        currency:
+          type: string
+          description: Default currency for transfers.
+          example: "GBP"
+        routingDetails:
+          type: object
+          properties:
+            ifscCode:
+              type: string
+            sortCode:
+              type: string
+            routingNumber:
+              type: string
+        correspondentBank:
+          type: object
+          properties:
+            bankName:
+              type: string
+            swiftCode:
+              type: string
+        address:
+          type: object
+          description: Beneficiary's physical address (required for some countries).
+          properties:
+            addressLine1:
+              type: string
+            addressLine2:
+              type: string
+            city:
+              type: string
+            state:
+              type: string
+            country:
+              type: string
+            postalCode:
+              type: string
+        relationship:
+          type: string
+          enum: [SELF, FAMILY, FRIEND, EMPLOYER, EMPLOYEE, LANDLORD, VENDOR, OTHER]
+          example: "FRIEND"
+
+    RegisterBeneficiaryResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            beneficiaryId:
+              type: string
+            status:
+              type: string
+            validationResult:
+              type: object
+              properties:
+                ibanValid:
+                  type: boolean
+                bankNameConfirmed:
+                  type: string
+                swiftCodeValid:
+                  type: boolean
+                accountHolderName:
+                  type: string
+                  nullable: true
+                  description: Name returned by bank (for domestic IBANs).
+            otpSentTo:
+              type: string
+              description: Masked mobile number where OTP was sent.
+            otpExpiresIn:
+              type: integer
+              description: OTP validity in seconds.
+            message:
+              type: string
+
+    ActivateBeneficiaryRequest:
+      type: object
+      required:
+        - otp
+      properties:
+        otp:
+          type: string
+          description: One-Time Password received on the registered mobile number.
+          pattern: "^\\d{6}$"
+          example: "485271"
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalRecords:
+          type: integer
+        totalPages:
+          type: integer
+
+    ErrorResponse:
+      type: object
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        traceId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+  responses:
+    BadRequest:
+      description: The request was invalid or cannot be processed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/bad-request"
+            title: "Bad Request"
+            status: 400
+            detail: "IBAN validation failed. The provided IBAN does not match the expected format."
+            traceId: "trace-400-ben-001"
+            timestamp: "2026-02-14T10:30:00Z"
+            errors:
+              - field: "iban"
+                message: "Invalid IBAN checksum for country code AE."
+                code: "INVALID_IBAN"
+    Unauthorized:
+      description: Authentication failed. The access token is missing, expired, or invalid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/unauthorized"
+            title: "Unauthorized"
+            status: 401
+            detail: "The access token has expired. Please obtain a new token."
+            traceId: "trace-401-ben-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    Forbidden:
+      description: The authenticated user does not have permission to access this resource.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/forbidden"
+            title: "Forbidden"
+            status: 403
+            detail: "You do not have permission to manage beneficiaries for this customer."
+            traceId: "trace-403-ben-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    NotFound:
+      description: The requested resource was not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/not-found"
+            title: "Resource Not Found"
+            status: 404
+            detail: "The requested beneficiary was not found."
+            traceId: "trace-404-ben-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    Conflict:
+      description: The request conflicts with the current state of the resource.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/conflict"
+            title: "Conflict"
+            status: 409
+            detail: "Cannot delete beneficiary — active standing instructions exist."
+            traceId: "trace-409-ben-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    TooManyRequests:
+      description: Rate limit exceeded. Retry after the specified duration.
+      headers:
+        Retry-After:
+          description: Number of seconds to wait before retrying.
+          schema:
+            type: integer
+            example: 60
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/rate-limit"
+            title: "Too Many Requests"
+            status: 429
+            detail: "Rate limit exceeded. Please retry after 60 seconds."
+            traceId: "trace-429-ben-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    InternalServerError:
+      description: An unexpected error occurred on the server.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/internal"
+            title: "Internal Server Error"
+            status: 500
+            detail: "An unexpected error occurred. Please contact support with the trace ID."
+            traceId: "trace-500-ben-001"
+            timestamp: "2026-02-14T10:30:00Z"

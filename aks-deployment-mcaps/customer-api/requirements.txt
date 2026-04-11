@@ -1,0 +1,20 @@
+# Python Dependencies for Customer REST API
+
+# Web Framework
+Flask==3.0.0
+flask-cors==4.0.0
+
+# Production WSGI Server (required for production deployment)
+waitress==2.1.2
+
+# PostgreSQL Database Driver
+psycopg2-binary==2.9.9
+
+# Azure Identity SDK for Azure AD authentication
+azure-identity==1.15.0
+
+# Configuration Management
+python-dotenv==1.0.0
+
+# HTTP client for health checks
+requests==2.31.0

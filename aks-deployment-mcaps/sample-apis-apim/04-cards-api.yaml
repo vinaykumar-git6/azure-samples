@@ -1,0 +1,1042 @@
+openapi: 3.0.3
+info:
+  title: Cards Management API
+  description: |
+    ## Overview
+    The **Cards Management API** provides comprehensive card lifecycle management for debit,
+    credit, and prepaid cards. It covers card issuance, activation, blocking, PIN management,
+    limit controls, and transaction controls.
+
+    ## Card Types Supported
+    | Type | Description |
+    |------|-------------|
+    | DEBIT | Linked to a current/savings account |
+    | CREDIT | Revolving credit line with billing cycles |
+    | PREPAID | Pre-loaded value card |
+    | VIRTUAL | Digital-only card for online transactions |
+
+    ## Security
+    - All PIN-related operations use end-to-end encryption
+    - Card numbers are masked in responses (show last 4 digits only)
+    - CVV is never returned in any API response
+  version: 1.0.0
+  contact:
+    name: Banking API Support
+    email: api-support@bank.com
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+servers:
+  - url: https://api.bank.com/v1
+    description: Production
+  - url: https://sandbox.api.bank.com/v1
+    description: Sandbox
+
+tags:
+  - name: Cards
+    description: Card listing and detail retrieval.
+  - name: Card Actions
+    description: Card lifecycle actions such as activation, blocking, and PIN management.
+  - name: Card Limits
+    description: Manage spending and withdrawal limits.
+  - name: Card Controls
+    description: Transaction type controls and merchant category restrictions.
+
+security:
+  - BearerAuth: []
+
+paths:
+  /cards:
+    get:
+      tags:
+        - Cards
+      summary: List customer cards
+      description: |
+        Retrieves all cards associated with the authenticated customer. Includes debit,
+        credit, prepaid, and virtual cards. Card numbers are masked for security.
+      operationId: listCards
+      parameters:
+        - name: cardType
+          in: query
+          required: false
+          description: Filter cards by type.
+          schema:
+            type: string
+            enum: [DEBIT, CREDIT, PREPAID, VIRTUAL]
+        - name: status
+          in: query
+          required: false
+          description: Filter cards by status.
+          schema:
+            type: string
+            enum: [ACTIVE, INACTIVE, BLOCKED, EXPIRED, CANCELLED]
+      responses:
+        '200':
+          description: Cards retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CardListResponse'
+              example:
+                data:
+                  - cardId: "CARD-2026-001234"
+                    cardType: "CREDIT"
+                    cardSubType: "PLATINUM"
+                    maskedCardNumber: "****-****-****-4521"
+                    cardNetwork: "VISA"
+                    nameOnCard: "VINAY KUMAR"
+                    linkedAccountId: null
+                    status: "ACTIVE"
+                    expiryDate: "2028-09"
+                    isContactlessEnabled: true
+                    isOnlineEnabled: true
+                    isInternationalEnabled: true
+                    creditLimit:
+                      value: 50000.00
+                      currency: "AED"
+                    availableCredit:
+                      value: 35420.50
+                      currency: "AED"
+                    outstandingBalance:
+                      value: 14579.50
+                      currency: "AED"
+                    minimumDueAmount:
+                      value: 728.98
+                      currency: "AED"
+                    dueDate: "2026-03-05"
+                    lastStatementDate: "2026-02-05"
+                    rewardPoints: 12450
+                    issueDate: "2024-09-15"
+                  - cardId: "CARD-2026-001235"
+                    cardType: "DEBIT"
+                    cardSubType: "CLASSIC"
+                    maskedCardNumber: "****-****-****-7892"
+                    cardNetwork: "MASTERCARD"
+                    nameOnCard: "VINAY KUMAR"
+                    linkedAccountId: "ACC-2026-001234"
+                    status: "ACTIVE"
+                    expiryDate: "2027-06"
+                    isContactlessEnabled: true
+                    isOnlineEnabled: true
+                    isInternationalEnabled: false
+                    issueDate: "2023-06-20"
+                  - cardId: "CARD-2026-001236"
+                    cardType: "VIRTUAL"
+                    cardSubType: "ECOMMERCE"
+                    maskedCardNumber: "****-****-****-1100"
+                    cardNetwork: "VISA"
+                    nameOnCard: "VINAY KUMAR"
+                    linkedAccountId: "ACC-2026-001234"
+                    status: "ACTIVE"
+                    expiryDate: "2026-08"
+                    isContactlessEnabled: false
+                    isOnlineEnabled: true
+                    isInternationalEnabled: true
+                    issueDate: "2025-08-01"
+
+  /cards/{cardId}:
+    get:
+      tags:
+        - Cards
+      summary: Get card details
+      description: |
+        Retrieves detailed information about a specific card, including billing information
+        for credit cards, linked account details for debit cards, and current limit settings.
+      operationId: getCardDetails
+      parameters:
+        - name: cardId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "CARD-2026-001234"
+      responses:
+        '200':
+          description: Card details retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CardDetailResponse'
+              example:
+                data:
+                  cardId: "CARD-2026-001234"
+                  cardType: "CREDIT"
+                  cardSubType: "PLATINUM"
+                  maskedCardNumber: "****-****-****-4521"
+                  cardNetwork: "VISA"
+                  nameOnCard: "VINAY KUMAR"
+                  status: "ACTIVE"
+                  expiryDate: "2028-09"
+                  issueDate: "2024-09-15"
+                  isContactlessEnabled: true
+                  isOnlineEnabled: true
+                  isInternationalEnabled: true
+                  isApplePayEnrolled: true
+                  isGooglePayEnrolled: false
+                  isSamsungPayEnrolled: false
+                  billing:
+                    creditLimit:
+                      value: 50000.00
+                      currency: "AED"
+                    availableCredit:
+                      value: 35420.50
+                      currency: "AED"
+                    outstandingBalance:
+                      value: 14579.50
+                      currency: "AED"
+                    minimumDueAmount:
+                      value: 728.98
+                      currency: "AED"
+                    dueDate: "2026-03-05"
+                    lastStatementDate: "2026-02-05"
+                    nextStatementDate: "2026-03-05"
+                    billingCycleDay: 5
+                    interestRate: 3.49
+                    cashAdvanceRate: 3.99
+                    lastPaymentAmount:
+                      value: 5000.00
+                      currency: "AED"
+                    lastPaymentDate: "2026-02-10"
+                  limits:
+                    dailyPosLimit:
+                      value: 25000.00
+                      currency: "AED"
+                    dailyAtmLimit:
+                      value: 5000.00
+                      currency: "AED"
+                    dailyOnlineLimit:
+                      value: 15000.00
+                      currency: "AED"
+                    perTransactionLimit:
+                      value: 10000.00
+                      currency: "AED"
+                    monthlyLimit:
+                      value: 50000.00
+                      currency: "AED"
+                  rewards:
+                    currentPoints: 12450
+                    pointsExpiringSoon: 1200
+                    pointsExpiryDate: "2026-06-30"
+                    tierLevel: "GOLD"
+                    cashbackRate: 1.5
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /cards/{cardId}/activate:
+    post:
+      tags:
+        - Card Actions
+      summary: Activate a card
+      description: |
+        Activates a newly issued card. Requires the last 6 digits of the card number
+        and the customer's date of birth for verification.
+      operationId: activateCard
+      parameters:
+        - name: cardId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActivateCardRequest'
+            example:
+              last6Digits: "234521"
+              dateOfBirth: "1990-05-15"
+      responses:
+        '200':
+          description: Card activated successfully.
+          content:
+            application/json:
+              example:
+                data:
+                  cardId: "CARD-2026-001234"
+                  status: "ACTIVE"
+                  activatedAt: "2026-02-14T11:00:00Z"
+                  message: "Card has been activated. You may now set your PIN."
+        '400':
+          description: Verification failed or card already active.
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /cards/{cardId}/block:
+    post:
+      tags:
+        - Card Actions
+      summary: Block a card
+      description: |
+        Temporarily or permanently blocks a card. Use this for lost, stolen, or
+        suspicious activity scenarios.
+
+        | Block Type | Description | Reversible |
+        |-----------|-------------|------------|
+        | TEMPORARY | Soft block — customer can unblock | Yes |
+        | PERMANENT | Hard block — requires card replacement | No |
+      operationId: blockCard
+      parameters:
+        - name: cardId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BlockCardRequest'
+            example:
+              blockType: "TEMPORARY"
+              reason: "LOST"
+              description: "Misplaced card, temporary block while searching"
+      responses:
+        '200':
+          description: Card blocked successfully.
+          content:
+            application/json:
+              example:
+                data:
+                  cardId: "CARD-2026-001234"
+                  status: "BLOCKED"
+                  blockType: "TEMPORARY"
+                  blockedAt: "2026-02-14T11:30:00Z"
+                  referenceNumber: "BLK-2026-0214-001"
+                  message: "Card has been temporarily blocked. You can unblock it anytime."
+
+  /cards/{cardId}/unblock:
+    post:
+      tags:
+        - Card Actions
+      summary: Unblock a card
+      description: |
+        Removes a temporary block from a card. Only applicable to cards with
+        `TEMPORARY` block type. Permanently blocked cards cannot be unblocked.
+      operationId: unblockCard
+      parameters:
+        - name: cardId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Card unblocked successfully.
+          content:
+            application/json:
+              example:
+                data:
+                  cardId: "CARD-2026-001234"
+                  status: "ACTIVE"
+                  unblockedAt: "2026-02-14T14:00:00Z"
+                  message: "Card has been unblocked and is now active."
+        '400':
+          description: Card is permanently blocked and cannot be unblocked.
+
+  /cards/{cardId}/pin/set:
+    post:
+      tags:
+        - Card Actions
+      summary: Set or reset card PIN
+      description: |
+        Sets a new PIN for the card. The PIN is encrypted using RSA-OAEP with the
+        bank's public key before transmission.
+
+        **Important**: Never transmit PIN in plain text. Use the encryption key
+        from the `/cards/{cardId}/pin/encryption-key` endpoint.
+      operationId: setCardPin
+      parameters:
+        - name: cardId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetPinRequest'
+            example:
+              encryptedPin: "a1b2c3d4e5f6g7h8i9j0..."
+              encryptionKeyId: "EK-2026-001"
+      responses:
+        '200':
+          description: PIN set successfully.
+          content:
+            application/json:
+              example:
+                data:
+                  cardId: "CARD-2026-001234"
+                  message: "PIN has been set successfully. You can now use your card at ATMs and POS terminals."
+                  pinSetAt: "2026-02-14T12:00:00Z"
+        '400':
+          description: Invalid encrypted PIN format.
+
+  /cards/{cardId}/limits:
+    get:
+      tags:
+        - Card Limits
+      summary: Get card limits
+      description: Retrieves current spending and withdrawal limits for the card.
+      operationId: getCardLimits
+      parameters:
+        - name: cardId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Card limits retrieved.
+          content:
+            application/json:
+              example:
+                data:
+                  cardId: "CARD-2026-001234"
+                  limits:
+                    - limitType: "DAILY_POS"
+                      currentLimit:
+                        value: 25000.00
+                        currency: "AED"
+                      maximumAllowed:
+                        value: 100000.00
+                        currency: "AED"
+                      utilized:
+                        value: 3500.00
+                        currency: "AED"
+                      remaining:
+                        value: 21500.00
+                        currency: "AED"
+                    - limitType: "DAILY_ATM"
+                      currentLimit:
+                        value: 5000.00
+                        currency: "AED"
+                      maximumAllowed:
+                        value: 20000.00
+                        currency: "AED"
+                      utilized:
+                        value: 0.00
+                        currency: "AED"
+                      remaining:
+                        value: 5000.00
+                        currency: "AED"
+                    - limitType: "DAILY_ONLINE"
+                      currentLimit:
+                        value: 15000.00
+                        currency: "AED"
+                      maximumAllowed:
+                        value: 50000.00
+                        currency: "AED"
+                      utilized:
+                        value: 1200.00
+                        currency: "AED"
+                      remaining:
+                        value: 13800.00
+                        currency: "AED"
+                    - limitType: "PER_TRANSACTION"
+                      currentLimit:
+                        value: 10000.00
+                        currency: "AED"
+                      maximumAllowed:
+                        value: 50000.00
+                        currency: "AED"
+                    - limitType: "MONTHLY"
+                      currentLimit:
+                        value: 50000.00
+                        currency: "AED"
+                      maximumAllowed:
+                        value: 200000.00
+                        currency: "AED"
+                      utilized:
+                        value: 14579.50
+                        currency: "AED"
+                      remaining:
+                        value: 35420.50
+                        currency: "AED"
+
+    put:
+      tags:
+        - Card Limits
+      summary: Update card limits
+      description: |
+        Updates one or more spending limits for a card. Each limit can be set between
+        the minimum allowed amount and the maximum allowed for the card type.
+        Limit changes take effect immediately.
+      operationId: updateCardLimits
+      parameters:
+        - name: cardId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateLimitsRequest'
+            example:
+              limits:
+                - limitType: "DAILY_POS"
+                  newLimit:
+                    value: 30000.00
+                    currency: "AED"
+                - limitType: "DAILY_ONLINE"
+                  newLimit:
+                    value: 20000.00
+                    currency: "AED"
+      responses:
+        '200':
+          description: Limits updated successfully.
+          content:
+            application/json:
+              example:
+                data:
+                  cardId: "CARD-2026-001234"
+                  updatedLimits:
+                    - limitType: "DAILY_POS"
+                      previousLimit: 25000.00
+                      newLimit: 30000.00
+                      currency: "AED"
+                    - limitType: "DAILY_ONLINE"
+                      previousLimit: 15000.00
+                      newLimit: 20000.00
+                      currency: "AED"
+                  message: "Card limits updated successfully."
+                  updatedAt: "2026-02-14T13:00:00Z"
+        '400':
+          description: Limit exceeds maximum allowed.
+
+  /cards/{cardId}/controls:
+    get:
+      tags:
+        - Card Controls
+      summary: Get card transaction controls
+      description: |
+        Retrieves transaction control settings for the card. Controls allow customers to
+        enable/disable specific transaction types and restrict merchant categories.
+      operationId: getCardControls
+      parameters:
+        - name: cardId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Card controls retrieved.
+          content:
+            application/json:
+              example:
+                data:
+                  cardId: "CARD-2026-001234"
+                  transactionControls:
+                    contactlessEnabled: true
+                    onlineEnabled: true
+                    internationalEnabled: true
+                    atmWithdrawalEnabled: true
+                    posEnabled: true
+                    recurringPaymentsEnabled: true
+                    magneticStripeEnabled: false
+                  merchantCategoryControls:
+                    - category: "GAMBLING"
+                      mcc: "7995"
+                      enabled: false
+                    - category: "ALCOHOL"
+                      mcc: "5921"
+                      enabled: true
+                    - category: "CASH_ADVANCE"
+                      mcc: "6010"
+                      enabled: false
+                  geographicControls:
+                    allowedRegions: ["UAE", "GCC", "EUROPE"]
+                    blockedCountries: []
+
+    put:
+      tags:
+        - Card Controls
+      summary: Update card transaction controls
+      description: |
+        Updates transaction control settings for the card. Changes take effect immediately
+        and apply to all subsequent transactions.
+      operationId: updateCardControls
+      parameters:
+        - name: cardId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateControlsRequest'
+            example:
+              transactionControls:
+                internationalEnabled: false
+                magneticStripeEnabled: false
+              merchantCategoryControls:
+                - category: "GAMBLING"
+                  enabled: false
+      responses:
+        '200':
+          description: Controls updated successfully.
+          content:
+            application/json:
+              example:
+                data:
+                  cardId: "CARD-2026-001234"
+                  message: "Card controls updated successfully."
+                  updatedAt: "2026-02-14T13:30:00Z"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    CardListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CardSummary'
+
+    CardSummary:
+      type: object
+      description: Summary view of a customer's card.
+      properties:
+        cardId:
+          type: string
+          description: Unique card identifier.
+          example: "CARD-2026-001234"
+        cardType:
+          type: string
+          description: Primary card type.
+          enum: [DEBIT, CREDIT, PREPAID, VIRTUAL]
+          example: "CREDIT"
+        cardSubType:
+          type: string
+          description: Card tier/sub-type indicating product level.
+          enum: [CLASSIC, GOLD, PLATINUM, SIGNATURE, INFINITE, WORLD, WORLD_ELITE, TITANIUM, ECOMMERCE]
+          example: "PLATINUM"
+        maskedCardNumber:
+          type: string
+          description: Masked card number showing only the last 4 digits.
+          pattern: "^\\*{4}-\\*{4}-\\*{4}-\\d{4}$"
+          example: "****-****-****-4521"
+        cardNetwork:
+          type: string
+          description: Payment network/scheme.
+          enum: [VISA, MASTERCARD, AMEX, UNIONPAY, DINERS]
+          example: "VISA"
+        nameOnCard:
+          type: string
+          description: Name printed on the physical card.
+          example: "VINAY KUMAR"
+        linkedAccountId:
+          type: string
+          nullable: true
+          description: Account linked to the card (for debit/prepaid). Null for credit cards.
+          example: "ACC-2026-001234"
+        status:
+          type: string
+          description: |
+            Current card status:
+            - `ACTIVE` - Card is functional
+            - `INACTIVE` - Newly issued, pending activation
+            - `BLOCKED` - Temporarily or permanently blocked
+            - `EXPIRED` - Card has expired
+            - `CANCELLED` - Card has been cancelled
+          enum: [ACTIVE, INACTIVE, BLOCKED, EXPIRED, CANCELLED]
+          example: "ACTIVE"
+        expiryDate:
+          type: string
+          description: Card expiry in YYYY-MM format.
+          pattern: "^\\d{4}-\\d{2}$"
+          example: "2028-09"
+        isContactlessEnabled:
+          type: boolean
+          description: Whether contactless (tap) payments are enabled.
+          example: true
+        isOnlineEnabled:
+          type: boolean
+          description: Whether card-not-present (online/ecommerce) transactions are enabled.
+          example: true
+        isInternationalEnabled:
+          type: boolean
+          description: Whether international transactions are allowed.
+          example: true
+        creditLimit:
+          $ref: '#/components/schemas/Money'
+        availableCredit:
+          $ref: '#/components/schemas/Money'
+        outstandingBalance:
+          $ref: '#/components/schemas/Money'
+        minimumDueAmount:
+          $ref: '#/components/schemas/Money'
+        dueDate:
+          type: string
+          format: date
+          description: Next payment due date (credit cards only).
+        rewardPoints:
+          type: integer
+          description: Current reward points balance.
+          example: 12450
+        issueDate:
+          type: string
+          format: date
+          description: Date the card was issued.
+          example: "2024-09-15"
+
+    CardDetailResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/CardDetail'
+
+    CardDetail:
+      allOf:
+        - $ref: '#/components/schemas/CardSummary'
+        - type: object
+          properties:
+            isApplePayEnrolled:
+              type: boolean
+              description: Whether the card is added to Apple Pay.
+              example: true
+            isGooglePayEnrolled:
+              type: boolean
+              description: Whether the card is added to Google Pay.
+              example: false
+            isSamsungPayEnrolled:
+              type: boolean
+              description: Whether the card is added to Samsung Pay.
+              example: false
+            billing:
+              $ref: '#/components/schemas/BillingInfo'
+            limits:
+              $ref: '#/components/schemas/CardLimitsInfo'
+            rewards:
+              $ref: '#/components/schemas/RewardsInfo'
+
+    BillingInfo:
+      type: object
+      description: Credit card billing information.
+      properties:
+        creditLimit:
+          $ref: '#/components/schemas/Money'
+        availableCredit:
+          $ref: '#/components/schemas/Money'
+        outstandingBalance:
+          $ref: '#/components/schemas/Money'
+        minimumDueAmount:
+          $ref: '#/components/schemas/Money'
+        dueDate:
+          type: string
+          format: date
+        lastStatementDate:
+          type: string
+          format: date
+        nextStatementDate:
+          type: string
+          format: date
+        billingCycleDay:
+          type: integer
+          description: Day of month the billing cycle closes.
+          example: 5
+        interestRate:
+          type: number
+          format: double
+          description: Monthly interest rate percentage on outstanding balance.
+          example: 3.49
+        cashAdvanceRate:
+          type: number
+          format: double
+          description: Monthly interest rate for cash advances.
+          example: 3.99
+        lastPaymentAmount:
+          $ref: '#/components/schemas/Money'
+        lastPaymentDate:
+          type: string
+          format: date
+
+    CardLimitsInfo:
+      type: object
+      properties:
+        dailyPosLimit:
+          $ref: '#/components/schemas/Money'
+        dailyAtmLimit:
+          $ref: '#/components/schemas/Money'
+        dailyOnlineLimit:
+          $ref: '#/components/schemas/Money'
+        perTransactionLimit:
+          $ref: '#/components/schemas/Money'
+        monthlyLimit:
+          $ref: '#/components/schemas/Money'
+
+    RewardsInfo:
+      type: object
+      properties:
+        currentPoints:
+          type: integer
+          description: Total available reward points.
+          example: 12450
+        pointsExpiringSoon:
+          type: integer
+          description: Points expiring within 90 days.
+          example: 1200
+        pointsExpiryDate:
+          type: string
+          format: date
+          description: Expiry date for the soonest-expiring batch.
+        tierLevel:
+          type: string
+          description: Current rewards tier.
+          enum: [SILVER, GOLD, PLATINUM, DIAMOND]
+          example: "GOLD"
+        cashbackRate:
+          type: number
+          format: double
+          description: Cashback percentage on qualifying purchases.
+          example: 1.5
+
+    ActivateCardRequest:
+      type: object
+      required:
+        - last6Digits
+        - dateOfBirth
+      properties:
+        last6Digits:
+          type: string
+          description: Last 6 digits of the card number for verification.
+          pattern: "^\\d{6}$"
+          example: "234521"
+        dateOfBirth:
+          type: string
+          format: date
+          description: Cardholder's date of birth for identity verification.
+          example: "1990-05-15"
+
+    BlockCardRequest:
+      type: object
+      required:
+        - blockType
+        - reason
+      properties:
+        blockType:
+          type: string
+          description: |
+            - `TEMPORARY` — Soft block that can be reversed by the customer
+            - `PERMANENT` — Hard block requiring card replacement
+          enum: [TEMPORARY, PERMANENT]
+          example: "TEMPORARY"
+        reason:
+          type: string
+          description: Reason for blocking the card.
+          enum: [LOST, STOLEN, DAMAGED, SUSPICIOUS_ACTIVITY, CUSTOMER_REQUEST, FRAUD_CONFIRMED]
+          example: "LOST"
+        description:
+          type: string
+          description: Additional details about the block reason.
+          maxLength: 256
+          example: "Misplaced card, temporary block while searching"
+
+    SetPinRequest:
+      type: object
+      required:
+        - encryptedPin
+        - encryptionKeyId
+      properties:
+        encryptedPin:
+          type: string
+          description: |
+            RSA-OAEP encrypted PIN value. Obtain the encryption public key from
+            the `/cards/{cardId}/pin/encryption-key` endpoint before encrypting.
+          example: "a1b2c3d4e5f6g7h8i9j0..."
+        encryptionKeyId:
+          type: string
+          description: ID of the encryption key used to encrypt the PIN.
+          example: "EK-2026-001"
+
+    UpdateLimitsRequest:
+      type: object
+      required:
+        - limits
+      properties:
+        limits:
+          type: array
+          description: List of limits to update.
+          items:
+            type: object
+            required:
+              - limitType
+              - newLimit
+            properties:
+              limitType:
+                type: string
+                description: Type of limit to update.
+                enum: [DAILY_POS, DAILY_ATM, DAILY_ONLINE, PER_TRANSACTION, MONTHLY]
+                example: "DAILY_POS"
+              newLimit:
+                $ref: '#/components/schemas/Money'
+
+    UpdateControlsRequest:
+      type: object
+      properties:
+        transactionControls:
+          type: object
+          properties:
+            contactlessEnabled:
+              type: boolean
+            onlineEnabled:
+              type: boolean
+            internationalEnabled:
+              type: boolean
+            atmWithdrawalEnabled:
+              type: boolean
+            posEnabled:
+              type: boolean
+            recurringPaymentsEnabled:
+              type: boolean
+            magneticStripeEnabled:
+              type: boolean
+        merchantCategoryControls:
+          type: array
+          items:
+            type: object
+            properties:
+              category:
+                type: string
+              enabled:
+                type: boolean
+
+    Money:
+      type: object
+      description: Monetary amount with currency.
+      properties:
+        value:
+          type: number
+          format: double
+          description: Amount value.
+          example: 25000.00
+        currency:
+          type: string
+          description: ISO 4217 currency code.
+          pattern: "^[A-Z]{3}$"
+          example: "AED"
+
+    ErrorResponse:
+      type: object
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        traceId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+  responses:
+    BadRequest:
+      description: The request was invalid or cannot be processed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/bad-request"
+            title: "Bad Request"
+            status: 400
+            detail: "Invalid card activation details or card is already active."
+            traceId: "trace-400-card-001"
+            timestamp: "2026-02-14T12:00:00Z"
+            errors:
+              - field: "last4Digits"
+                message: "Last 4 digits do not match the card on file."
+                code: "CARD_MISMATCH"
+    Unauthorized:
+      description: Authentication failed. The access token is missing, expired, or invalid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/unauthorized"
+            title: "Unauthorized"
+            status: 401
+            detail: "The access token has expired. Please obtain a new token."
+            traceId: "trace-401-card-001"
+            timestamp: "2026-02-14T12:00:00Z"
+    Forbidden:
+      description: The authenticated user does not have permission to access this resource.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/forbidden"
+            title: "Forbidden"
+            status: 403
+            detail: "You do not have permission to manage this card."
+            traceId: "trace-403-card-001"
+            timestamp: "2026-02-14T12:00:00Z"
+    NotFound:
+      description: The requested resource was not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/not-found"
+            title: "Resource Not Found"
+            status: 404
+            detail: "The requested card was not found."
+            traceId: "trace-404-card-001"
+            timestamp: "2026-02-14T12:00:00Z"
+    TooManyRequests:
+      description: Rate limit exceeded. Retry after the specified duration.
+      headers:
+        Retry-After:
+          description: Number of seconds to wait before retrying.
+          schema:
+            type: integer
+            example: 60
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/rate-limit"
+            title: "Too Many Requests"
+            status: 429
+            detail: "Rate limit exceeded. Please retry after 60 seconds."
+            traceId: "trace-429-card-001"
+            timestamp: "2026-02-14T12:00:00Z"
+    InternalServerError:
+      description: An unexpected error occurred on the server.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/internal"
+            title: "Internal Server Error"
+            status: 500
+            detail: "An unexpected error occurred. Please contact support with the trace ID."
+            traceId: "trace-500-card-001"
+            timestamp: "2026-02-14T12:00:00Z"

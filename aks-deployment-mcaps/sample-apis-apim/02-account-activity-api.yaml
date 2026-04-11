@@ -1,0 +1,1320 @@
+openapi: 3.0.3
+info:
+  title: Account Activity API
+  description: |
+    ## Overview
+    The **Account Activity API** provides access to transaction history, real-time transaction details,
+    and fund transfer initiation. It supports domestic transfers, international wire transfers,
+    and intra-bank transfers with comprehensive tracking and audit capabilities.
+
+    ## Transaction Types
+    | Type | Description |
+    |------|-------------|
+    | `DEBIT` | Money debited from the account |
+    | `CREDIT` | Money credited to the account |
+    | `TRANSFER` | Internal fund transfer |
+    | `STANDING_ORDER` | Recurring scheduled payment |
+    | `DIRECT_DEBIT` | Authorized automatic collection |
+
+    ## Authentication
+    All endpoints require OAuth 2.0 Bearer token with `transactions:read` or `transactions:write` scope.
+
+    ## Idempotency
+    All POST endpoints support idempotency via the `X-Idempotency-Key` header to prevent duplicate transactions.
+  version: 1.0.0
+  contact:
+    name: Banking API Support
+    email: api-support@bank.com
+    url: https://developer.bank.com/support
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+servers:
+  - url: https://api.bank.com/v1
+    description: Production Server
+  - url: https://sandbox.api.bank.com/v1
+    description: Sandbox / Testing Server
+
+tags:
+  - name: Transaction History
+    description: Retrieve and search transaction records.
+  - name: Fund Transfers
+    description: Initiate and manage fund transfers between accounts.
+
+security:
+  - BearerAuth: []
+
+paths:
+  /accounts/{accountId}/transactions:
+    get:
+      tags:
+        - Transaction History
+      summary: List account transactions
+      description: |
+        Retrieves a paginated list of transactions for the specified account. Transactions can be
+        filtered by date range, type, amount range, and status. Results are sorted by transaction
+        date in descending order (newest first).
+
+        **Note**: Transaction history is available for up to 7 years. For older records,
+        please use the Statements API.
+      operationId: listTransactions
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          description: Unique identifier of the bank account.
+          schema:
+            type: string
+            pattern: '^ACC-\d{4}-\d{6}$'
+          example: "ACC-2026-001234"
+        - name: fromDate
+          in: query
+          required: false
+          description: Start date for transaction filter (inclusive) in ISO 8601 format.
+          schema:
+            type: string
+            format: date
+          example: "2026-01-01"
+        - name: toDate
+          in: query
+          required: false
+          description: End date for transaction filter (inclusive) in ISO 8601 format.
+          schema:
+            type: string
+            format: date
+          example: "2026-02-14"
+        - name: transactionType
+          in: query
+          required: false
+          description: |
+            Filter by transaction type:
+            - `DEBIT` - Outgoing transactions
+            - `CREDIT` - Incoming transactions
+            - `TRANSFER` - Account transfers
+            - `STANDING_ORDER` - Recurring payments
+            - `DIRECT_DEBIT` - Automatic collections
+          schema:
+            type: string
+            enum: [DEBIT, CREDIT, TRANSFER, STANDING_ORDER, DIRECT_DEBIT]
+        - name: minAmount
+          in: query
+          required: false
+          description: Minimum transaction amount filter.
+          schema:
+            type: number
+            format: double
+            minimum: 0
+          example: 100.00
+        - name: maxAmount
+          in: query
+          required: false
+          description: Maximum transaction amount filter.
+          schema:
+            type: number
+            format: double
+          example: 10000.00
+        - name: status
+          in: query
+          required: false
+          description: |
+            Filter by transaction status:
+            - `COMPLETED` - Transaction has been fully processed
+            - `PENDING` - Transaction is awaiting processing
+            - `FAILED` - Transaction failed
+            - `REVERSED` - Transaction has been reversed
+            - `ON_HOLD` - Transaction is temporarily held for review
+          schema:
+            type: string
+            enum: [COMPLETED, PENDING, FAILED, REVERSED, ON_HOLD]
+        - name: category
+          in: query
+          required: false
+          description: Filter by merchant category or transaction category.
+          schema:
+            type: string
+            enum: [GROCERIES, DINING, TRAVEL, UTILITIES, SALARY, RENT, ENTERTAINMENT, HEALTHCARE, EDUCATION, OTHER]
+        - name: searchText
+          in: query
+          required: false
+          description: Free-text search across transaction description, reference, and merchant name.
+          schema:
+            type: string
+            maxLength: 100
+          example: "Carrefour"
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: X-Correlation-Id
+          in: header
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Successfully retrieved transaction list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionListResponse'
+              example:
+                data:
+                  - transactionId: "TXN-2026-0214-001"
+                    accountId: "ACC-2026-001234"
+                    transactionDate: "2026-02-14T10:30:00Z"
+                    valueDate: "2026-02-14"
+                    bookingDate: "2026-02-14"
+                    transactionType: "DEBIT"
+                    status: "COMPLETED"
+                    amount:
+                      value: -1250.00
+                      currency: "AED"
+                    runningBalance:
+                      value: 125750.50
+                      currency: "AED"
+                    description: "POS Purchase - Carrefour Mall of Emirates"
+                    merchantName: "Carrefour"
+                    merchantCategoryCode: "5411"
+                    category: "GROCERIES"
+                    reference: "REF-POS-20260214-001"
+                    channel: "POS"
+                    location:
+                      city: "Dubai"
+                      country: "AE"
+                      countryName: "United Arab Emirates"
+                  - transactionId: "TXN-2026-0213-005"
+                    accountId: "ACC-2026-001234"
+                    transactionDate: "2026-02-13T09:00:00Z"
+                    valueDate: "2026-02-13"
+                    bookingDate: "2026-02-13"
+                    transactionType: "CREDIT"
+                    status: "COMPLETED"
+                    amount:
+                      value: 25000.00
+                      currency: "AED"
+                    runningBalance:
+                      value: 127000.50
+                      currency: "AED"
+                    description: "Salary Credit - February 2026"
+                    merchantName: null
+                    merchantCategoryCode: null
+                    category: "SALARY"
+                    reference: "SAL-FEB-2026-ALRASHID"
+                    channel: "INTERNAL"
+                    location: null
+                  - transactionId: "TXN-2026-0212-003"
+                    accountId: "ACC-2026-001234"
+                    transactionDate: "2026-02-12T14:22:00Z"
+                    valueDate: "2026-02-12"
+                    bookingDate: "2026-02-12"
+                    transactionType: "DEBIT"
+                    status: "COMPLETED"
+                    amount:
+                      value: -3500.00
+                      currency: "AED"
+                    runningBalance:
+                      value: 102000.50
+                      currency: "AED"
+                    description: "Online Transfer to Ahmed Al Mansouri"
+                    merchantName: null
+                    merchantCategoryCode: null
+                    category: "OTHER"
+                    reference: "FT-20260212-789456"
+                    channel: "ONLINE_BANKING"
+                    location: null
+                pagination:
+                  page: 1
+                  pageSize: 20
+                  totalRecords: 156
+                  totalPages: 8
+                  hasNextPage: true
+                  hasPreviousPage: false
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /accounts/{accountId}/transactions/{transactionId}:
+    get:
+      tags:
+        - Transaction History
+      summary: Get transaction details
+      description: |
+        Retrieves complete details of a specific transaction including enriched merchant data,
+        exchange rate information (for cross-currency transactions), and any associated fees.
+      operationId: getTransactionById
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "ACC-2026-001234"
+        - name: transactionId
+          in: path
+          required: true
+          description: Unique identifier of the transaction.
+          schema:
+            type: string
+          example: "TXN-2026-0214-001"
+      responses:
+        '200':
+          description: Transaction details retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionDetailResponse'
+              example:
+                data:
+                  transactionId: "TXN-2026-0214-001"
+                  accountId: "ACC-2026-001234"
+                  transactionDate: "2026-02-14T10:30:00Z"
+                  valueDate: "2026-02-14"
+                  bookingDate: "2026-02-14"
+                  transactionType: "DEBIT"
+                  status: "COMPLETED"
+                  amount:
+                    value: -1250.00
+                    currency: "AED"
+                  originalAmount:
+                    value: -1250.00
+                    currency: "AED"
+                  exchangeRate: null
+                  runningBalance:
+                    value: 125750.50
+                    currency: "AED"
+                  description: "POS Purchase - Carrefour Mall of Emirates"
+                  merchantDetails:
+                    name: "Carrefour"
+                    categoryCode: "5411"
+                    categoryDescription: "Grocery Stores, Supermarkets"
+                    terminalId: "TRM-MOE-0042"
+                    merchantId: "MID-CARREFOUR-MOE"
+                  category: "GROCERIES"
+                  reference: "REF-POS-20260214-001"
+                  endToEndReference: "E2E-POS-20260214-001"
+                  channel: "POS"
+                  paymentMethod: "CONTACTLESS"
+                  cardUsed:
+                    lastFourDigits: "4532"
+                    cardType: "DEBIT"
+                    cardScheme: "VISA"
+                  location:
+                    merchantAddress: "Mall of the Emirates, Al Barsha"
+                    city: "Dubai"
+                    state: "Dubai"
+                    country: "AE"
+                    countryName: "United Arab Emirates"
+                    postalCode: "00000"
+                  fees:
+                    - feeType: "TRANSACTION_FEE"
+                      amount:
+                        value: 0.00
+                        currency: "AED"
+                      description: "No transaction fee for domestic POS purchases"
+                  metadata:
+                    authorizationCode: "AUTH-789456"
+                    settlementDate: "2026-02-14"
+                    processedBy: "VISA_NETWORK"
+                  createdAt: "2026-02-14T10:30:00Z"
+                  updatedAt: "2026-02-14T10:30:05Z"
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /transfers:
+    post:
+      tags:
+        - Fund Transfers
+      summary: Initiate a fund transfer
+      description: |
+        Initiates a fund transfer between accounts. Supports the following transfer types:
+        - **INTRA_BANK**: Between accounts within the same bank (instant)
+        - **DOMESTIC**: To accounts in other domestic banks (same-day or next-day)
+        - **INTERNATIONAL**: Cross-border wire transfers (2-5 business days)
+        - **OWN_ACCOUNT**: Between customer's own accounts (instant)
+
+        All transfers are subject to daily and per-transaction limits based on the customer's profile.
+
+        **Idempotency**: Use the `X-Idempotency-Key` header to prevent duplicate transfers.
+        The key must be unique per transfer and is valid for 24 hours.
+      operationId: initiateTransfer
+      parameters:
+        - name: X-Idempotency-Key
+          in: header
+          required: true
+          description: |
+            Unique idempotency key to prevent duplicate transfers. Must be a UUID v4.
+            Requests with the same key within 24 hours will return the original response.
+          schema:
+            type: string
+            format: uuid
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        - name: X-Correlation-Id
+          in: header
+          required: false
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        description: Transfer request details.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransferRequest'
+            example:
+              sourceAccountId: "ACC-2026-001234"
+              transferType: "INTRA_BANK"
+              amount:
+                value: 5000.00
+                currency: "AED"
+              beneficiary:
+                accountNumber: "9876543210987654"
+                bankCode: "033"
+                name: "Ahmed Al Mansouri"
+                iban: "AE070339876543210987654"
+              purpose: "FAMILY_SUPPORT"
+              description: "Monthly family support - February 2026"
+              executionDate: "2026-02-14"
+              urgency: "NORMAL"
+      responses:
+        '201':
+          description: Transfer initiated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransferResponse'
+              example:
+                data:
+                  transferId: "FT-2026-0214-001234"
+                  transactionId: "TXN-2026-0214-FT001"
+                  status: "PROCESSING"
+                  statusDetail: "Transfer is being processed. Expected completion within 30 seconds."
+                  sourceAccountId: "ACC-2026-001234"
+                  transferType: "INTRA_BANK"
+                  amount:
+                    value: 5000.00
+                    currency: "AED"
+                  fees:
+                    - feeType: "TRANSFER_FEE"
+                      amount:
+                        value: 0.00
+                        currency: "AED"
+                      description: "Free intra-bank transfers"
+                  totalDebitAmount:
+                    value: 5000.00
+                    currency: "AED"
+                  beneficiary:
+                    accountNumber: "9876543210987654"
+                    name: "Ahmed Al Mansouri"
+                    iban: "AE070339876543210987654"
+                  purpose: "FAMILY_SUPPORT"
+                  description: "Monthly family support - February 2026"
+                  executionDate: "2026-02-14"
+                  estimatedCompletionTime: "2026-02-14T10:31:00Z"
+                  reference: "FT-2026-0214-001234"
+                  createdAt: "2026-02-14T10:30:30Z"
+        '400':
+          description: Invalid transfer request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                type: "https://api.bank.com/errors/validation"
+                title: "Validation Error"
+                status: 400
+                detail: "Transfer request contains validation errors."
+                errors:
+                  - field: "amount.value"
+                    message: "Transfer amount exceeds daily limit of AED 100,000."
+                    code: "DAILY_LIMIT_EXCEEDED"
+                  - field: "beneficiary.iban"
+                    message: "IBAN checksum validation failed."
+                    code: "INVALID_IBAN"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Duplicate transfer detected (idempotency key already used).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransferResponse'
+        '422':
+          description: Transfer cannot be processed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                type: "https://api.bank.com/errors/insufficient-funds"
+                title: "Insufficient Funds"
+                status: 422
+                detail: "Account ACC-2026-001234 has insufficient funds for this transfer."
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /transfers/{transferId}:
+    get:
+      tags:
+        - Fund Transfers
+      summary: Get transfer status
+      description: |
+        Retrieves the current status and details of a specific fund transfer.
+        Use this endpoint to track the progress of initiated transfers.
+      operationId: getTransferStatus
+      parameters:
+        - name: transferId
+          in: path
+          required: true
+          description: Unique identifier of the transfer.
+          schema:
+            type: string
+          example: "FT-2026-0214-001234"
+      responses:
+        '200':
+          description: Transfer details retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransferResponse'
+              example:
+                data:
+                  transferId: "FT-2026-0214-001234"
+                  transactionId: "TXN-2026-0214-FT001"
+                  status: "COMPLETED"
+                  statusDetail: "Transfer has been successfully completed."
+                  sourceAccountId: "ACC-2026-001234"
+                  transferType: "INTRA_BANK"
+                  amount:
+                    value: 5000.00
+                    currency: "AED"
+                  fees:
+                    - feeType: "TRANSFER_FEE"
+                      amount:
+                        value: 0.00
+                        currency: "AED"
+                      description: "Free intra-bank transfers"
+                  totalDebitAmount:
+                    value: 5000.00
+                    currency: "AED"
+                  beneficiary:
+                    accountNumber: "9876543210987654"
+                    name: "Ahmed Al Mansouri"
+                    iban: "AE070339876543210987654"
+                  purpose: "FAMILY_SUPPORT"
+                  description: "Monthly family support - February 2026"
+                  executionDate: "2026-02-14"
+                  completedAt: "2026-02-14T10:30:45Z"
+                  reference: "FT-2026-0214-001234"
+                  createdAt: "2026-02-14T10:30:30Z"
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /transfers/{transferId}/cancel:
+    post:
+      tags:
+        - Fund Transfers
+      summary: Cancel a pending transfer
+      description: |
+        Cancels a transfer that is still in `PENDING` or `SCHEDULED` status.
+        Completed or already-cancelled transfers cannot be cancelled.
+        Refund of any fees is processed automatically.
+      operationId: cancelTransfer
+      parameters:
+        - name: transferId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "FT-2026-0214-001234"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  description: Reason for cancelling the transfer.
+                  maxLength: 500
+                  example: "Incorrect beneficiary details"
+      responses:
+        '200':
+          description: Transfer cancelled successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransferResponse'
+        '400':
+          description: Transfer cannot be cancelled (already completed or cancelled).
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: OAuth 2.0 Bearer token with `transactions:read` or `transactions:write` scope.
+
+  schemas:
+    TransactionListResponse:
+      type: object
+      description: Paginated response containing a list of transactions.
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TransactionSummary'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    TransactionDetailResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/TransactionDetail'
+
+    TransactionSummary:
+      type: object
+      description: Summary view of a financial transaction.
+      required:
+        - transactionId
+        - accountId
+        - transactionDate
+        - transactionType
+        - status
+        - amount
+      properties:
+        transactionId:
+          type: string
+          description: Unique system-generated identifier for the transaction. Format `TXN-YYYY-MMDD-NNN`.
+          example: "TXN-2026-0214-001"
+        accountId:
+          type: string
+          description: Account identifier the transaction belongs to.
+          example: "ACC-2026-001234"
+        transactionDate:
+          type: string
+          format: date-time
+          description: |
+            Date and time when the transaction was initiated, in ISO 8601 format.
+            This is the actual timestamp of the transaction event.
+          example: "2026-02-14T10:30:00Z"
+        valueDate:
+          type: string
+          format: date
+          description: |
+            The date on which the transaction amount affects the account balance.
+            May differ from booking date for future-dated or cross-border transactions.
+          example: "2026-02-14"
+        bookingDate:
+          type: string
+          format: date
+          description: The date when the transaction was recorded in the bank's books.
+          example: "2026-02-14"
+        transactionType:
+          type: string
+          description: |
+            Classification of the transaction:
+            - `DEBIT` - Money debited from account (outgoing)
+            - `CREDIT` - Money credited to account (incoming)
+            - `TRANSFER` - Internal fund transfer
+            - `STANDING_ORDER` - Recurring scheduled payment
+            - `DIRECT_DEBIT` - Authorized automatic collection
+          enum: [DEBIT, CREDIT, TRANSFER, STANDING_ORDER, DIRECT_DEBIT]
+          example: "DEBIT"
+        status:
+          type: string
+          description: |
+            Current processing status:
+            - `COMPLETED` - Fully processed and settled
+            - `PENDING` - Awaiting processing or settlement
+            - `FAILED` - Processing failed (funds returned)
+            - `REVERSED` - Transaction reversed/refunded
+            - `ON_HOLD` - Under review by compliance/fraud team
+          enum: [COMPLETED, PENDING, FAILED, REVERSED, ON_HOLD]
+          example: "COMPLETED"
+        amount:
+          type: object
+          description: Transaction amount in account currency. Negative for debits, positive for credits.
+          properties:
+            value:
+              type: number
+              format: double
+              example: -1250.00
+            currency:
+              type: string
+              example: "AED"
+        runningBalance:
+          type: object
+          description: Account balance after this transaction was applied.
+          properties:
+            value:
+              type: number
+              format: double
+              example: 125750.50
+            currency:
+              type: string
+              example: "AED"
+        description:
+          type: string
+          description: Human-readable description of the transaction.
+          maxLength: 500
+          example: "POS Purchase - Carrefour Mall of Emirates"
+        merchantName:
+          type: string
+          nullable: true
+          description: Name of the merchant (for card transactions). Null for transfers and credits.
+          example: "Carrefour"
+        merchantCategoryCode:
+          type: string
+          nullable: true
+          description: ISO 18245 Merchant Category Code (MCC) for POS/card transactions.
+          example: "5411"
+        category:
+          type: string
+          description: Auto-categorized transaction category for personal finance management.
+          enum: [GROCERIES, DINING, TRAVEL, UTILITIES, SALARY, RENT, ENTERTAINMENT, HEALTHCARE, EDUCATION, OTHER]
+          example: "GROCERIES"
+        reference:
+          type: string
+          description: Bank reference number for the transaction. Unique within the bank.
+          example: "REF-POS-20260214-001"
+        channel:
+          type: string
+          description: |
+            Channel through which the transaction was initiated:
+            - `POS` - Point of Sale terminal
+            - `ATM` - Automated Teller Machine
+            - `ONLINE_BANKING` - Internet banking platform
+            - `MOBILE_BANKING` - Mobile application
+            - `BRANCH` - Over the counter at branch
+            - `INTERNAL` - System-generated (salary, interest, etc.)
+            - `API` - Via Open Banking API
+          enum: [POS, ATM, ONLINE_BANKING, MOBILE_BANKING, BRANCH, INTERNAL, API]
+          example: "POS"
+        location:
+          type: object
+          nullable: true
+          description: Geographic location of the transaction (POS/ATM transactions only).
+          properties:
+            city:
+              type: string
+              example: "Dubai"
+            country:
+              type: string
+              description: ISO 3166-1 alpha-2 country code.
+              example: "AE"
+            countryName:
+              type: string
+              example: "United Arab Emirates"
+
+    TransactionDetail:
+      allOf:
+        - $ref: '#/components/schemas/TransactionSummary'
+        - type: object
+          description: Extended transaction details with merchant info, fees, and metadata.
+          properties:
+            originalAmount:
+              type: object
+              description: |
+                Original transaction amount in the transaction currency (before FX conversion).
+                For domestic transactions, this equals the `amount` field.
+              properties:
+                value:
+                  type: number
+                  format: double
+                  example: -1250.00
+                currency:
+                  type: string
+                  example: "AED"
+            exchangeRate:
+              type: number
+              format: double
+              nullable: true
+              description: Exchange rate applied for cross-currency transactions. Null for same-currency transactions.
+              example: null
+            endToEndReference:
+              type: string
+              description: End-to-end reference that follows the payment through the entire chain.
+              example: "E2E-POS-20260214-001"
+            merchantDetails:
+              type: object
+              nullable: true
+              description: Detailed merchant information for card-based transactions.
+              properties:
+                name:
+                  type: string
+                  description: Registered merchant name.
+                  example: "Carrefour"
+                categoryCode:
+                  type: string
+                  description: MCC code.
+                  example: "5411"
+                categoryDescription:
+                  type: string
+                  description: Human-readable MCC description.
+                  example: "Grocery Stores, Supermarkets"
+                terminalId:
+                  type: string
+                  description: POS terminal identifier.
+                  example: "TRM-MOE-0042"
+                merchantId:
+                  type: string
+                  description: Acquirer-assigned merchant identifier.
+                  example: "MID-CARREFOUR-MOE"
+            paymentMethod:
+              type: string
+              description: Method of payment used.
+              enum: [CHIP_AND_PIN, CONTACTLESS, SWIPE, ONLINE, MANUAL_ENTRY, MOBILE_WALLET]
+              example: "CONTACTLESS"
+            cardUsed:
+              type: object
+              nullable: true
+              description: Card details if the transaction was card-based.
+              properties:
+                lastFourDigits:
+                  type: string
+                  description: Last 4 digits of the card number.
+                  example: "4532"
+                cardType:
+                  type: string
+                  enum: [DEBIT, CREDIT, PREPAID]
+                  example: "DEBIT"
+                cardScheme:
+                  type: string
+                  description: Card network/scheme.
+                  enum: [VISA, MASTERCARD, AMEX, UNIONPAY, DINERS]
+                  example: "VISA"
+            location:
+              type: object
+              nullable: true
+              description: Full location details of the transaction.
+              properties:
+                merchantAddress:
+                  type: string
+                  example: "Mall of the Emirates, Al Barsha"
+                city:
+                  type: string
+                  example: "Dubai"
+                state:
+                  type: string
+                  example: "Dubai"
+                country:
+                  type: string
+                  example: "AE"
+                countryName:
+                  type: string
+                  example: "United Arab Emirates"
+                postalCode:
+                  type: string
+                  example: "00000"
+            fees:
+              type: array
+              description: List of fees applied to this transaction.
+              items:
+                $ref: '#/components/schemas/Fee'
+            metadata:
+              type: object
+              description: Additional processing metadata.
+              properties:
+                authorizationCode:
+                  type: string
+                  description: Authorization code from the card network.
+                  example: "AUTH-789456"
+                settlementDate:
+                  type: string
+                  format: date
+                  description: Date when the transaction was settled.
+                  example: "2026-02-14"
+                processedBy:
+                  type: string
+                  description: Network or system that processed the transaction.
+                  example: "VISA_NETWORK"
+            createdAt:
+              type: string
+              format: date-time
+              example: "2026-02-14T10:30:00Z"
+            updatedAt:
+              type: string
+              format: date-time
+              example: "2026-02-14T10:30:05Z"
+
+    TransferRequest:
+      type: object
+      description: Request payload for initiating a fund transfer.
+      required:
+        - sourceAccountId
+        - transferType
+        - amount
+        - beneficiary
+        - purpose
+      properties:
+        sourceAccountId:
+          type: string
+          description: Account from which funds will be debited.
+          example: "ACC-2026-001234"
+        transferType:
+          type: string
+          description: |
+            Type of transfer:
+            - `INTRA_BANK` - Same bank transfer (instant, free)
+            - `DOMESTIC` - Domestic interbank transfer via local clearing
+            - `INTERNATIONAL` - Cross-border SWIFT wire transfer
+            - `OWN_ACCOUNT` - Between customer's own accounts (instant, free)
+          enum: [INTRA_BANK, DOMESTIC, INTERNATIONAL, OWN_ACCOUNT]
+          example: "INTRA_BANK"
+        amount:
+          type: object
+          description: Transfer amount and currency.
+          required:
+            - value
+            - currency
+          properties:
+            value:
+              type: number
+              format: double
+              description: Amount to transfer. Must be positive and greater than zero.
+              minimum: 0.01
+              example: 5000.00
+            currency:
+              type: string
+              description: ISO 4217 currency code.
+              pattern: '^[A-Z]{3}$'
+              example: "AED"
+        beneficiary:
+          type: object
+          description: Details of the transfer recipient.
+          required:
+            - name
+          properties:
+            accountNumber:
+              type: string
+              description: Beneficiary's bank account number.
+              example: "9876543210987654"
+            bankCode:
+              type: string
+              description: Beneficiary bank's routing/sort code.
+              example: "033"
+            name:
+              type: string
+              description: Full name of the beneficiary as registered with their bank.
+              maxLength: 140
+              example: "Ahmed Al Mansouri"
+            iban:
+              type: string
+              description: International Bank Account Number (required for international transfers).
+              example: "AE070339876543210987654"
+            swiftCode:
+              type: string
+              description: SWIFT/BIC code (required for international transfers).
+              example: "BOMLAEAD"
+            bankName:
+              type: string
+              description: Name of the beneficiary's bank.
+              example: "National Bank"
+            bankAddress:
+              type: string
+              description: Address of the beneficiary's bank (for international transfers).
+              example: "Sheikh Zayed Road, Dubai, UAE"
+        purpose:
+          type: string
+          description: |
+            Purpose of the transfer (required for regulatory compliance):
+            - `SALARY` - Salary payment
+            - `FAMILY_SUPPORT` - Family maintenance/support
+            - `RENT` - Rent payment
+            - `LOAN_REPAYMENT` - Loan repayment
+            - `INVESTMENT` - Investment purpose
+            - `TRADE` - Trade/business payment
+            - `EDUCATION` - Education fees
+            - `MEDICAL` - Medical expenses
+            - `OTHER` - Other purpose
+          enum: [SALARY, FAMILY_SUPPORT, RENT, LOAN_REPAYMENT, INVESTMENT, TRADE, EDUCATION, MEDICAL, OTHER]
+          example: "FAMILY_SUPPORT"
+        description:
+          type: string
+          description: Free-text description/narration for the transfer. Appears on both sender and receiver statements.
+          maxLength: 140
+          example: "Monthly family support - February 2026"
+        executionDate:
+          type: string
+          format: date
+          description: |
+            Date on which the transfer should be executed. If not provided, the transfer is executed immediately.
+            Future dates create a scheduled transfer.
+          example: "2026-02-14"
+        urgency:
+          type: string
+          description: |
+            Transfer processing urgency:
+            - `NORMAL` - Standard processing (default)
+            - `URGENT` - Priority processing (additional fees may apply)
+            - `EXPRESS` - Same-day express processing
+          enum: [NORMAL, URGENT, EXPRESS]
+          default: "NORMAL"
+          example: "NORMAL"
+        chargeBearer:
+          type: string
+          description: |
+            Who bears the transfer charges (for international transfers):
+            - `OUR` - Sender pays all charges
+            - `SHA` - Charges shared between sender and receiver
+            - `BEN` - Beneficiary pays all charges
+          enum: [OUR, SHA, BEN]
+          default: "SHA"
+          example: "SHA"
+
+    TransferResponse:
+      type: object
+      description: Response after initiating or querying a fund transfer.
+      properties:
+        data:
+          type: object
+          properties:
+            transferId:
+              type: string
+              description: Unique identifier for the transfer.
+              example: "FT-2026-0214-001234"
+            transactionId:
+              type: string
+              description: Associated transaction ID in the account ledger.
+              example: "TXN-2026-0214-FT001"
+            status:
+              type: string
+              description: |
+                Current transfer status:
+                - `PROCESSING` - Transfer is being processed
+                - `COMPLETED` - Transfer completed successfully
+                - `FAILED` - Transfer failed
+                - `CANCELLED` - Transfer was cancelled
+                - `SCHEDULED` - Transfer is scheduled for future execution
+                - `PENDING_APPROVAL` - Awaiting approval (for high-value transfers)
+              enum: [PROCESSING, COMPLETED, FAILED, CANCELLED, SCHEDULED, PENDING_APPROVAL]
+              example: "PROCESSING"
+            statusDetail:
+              type: string
+              description: Human-readable description of the current status.
+              example: "Transfer is being processed."
+            sourceAccountId:
+              type: string
+              example: "ACC-2026-001234"
+            transferType:
+              type: string
+              example: "INTRA_BANK"
+            amount:
+              type: object
+              properties:
+                value:
+                  type: number
+                  format: double
+                  example: 5000.00
+                currency:
+                  type: string
+                  example: "AED"
+            fees:
+              type: array
+              items:
+                $ref: '#/components/schemas/Fee'
+            totalDebitAmount:
+              type: object
+              description: Total amount debited from source account (transfer amount + fees).
+              properties:
+                value:
+                  type: number
+                  format: double
+                  example: 5000.00
+                currency:
+                  type: string
+                  example: "AED"
+            beneficiary:
+              type: object
+              properties:
+                accountNumber:
+                  type: string
+                  example: "9876543210987654"
+                name:
+                  type: string
+                  example: "Ahmed Al Mansouri"
+                iban:
+                  type: string
+                  example: "AE070339876543210987654"
+            purpose:
+              type: string
+              example: "FAMILY_SUPPORT"
+            description:
+              type: string
+              example: "Monthly family support - February 2026"
+            executionDate:
+              type: string
+              format: date
+              example: "2026-02-14"
+            estimatedCompletionTime:
+              type: string
+              format: date-time
+              description: Estimated time of completion.
+              example: "2026-02-14T10:31:00Z"
+            completedAt:
+              type: string
+              format: date-time
+              nullable: true
+              description: Actual completion timestamp. Null if not yet completed.
+            reference:
+              type: string
+              example: "FT-2026-0214-001234"
+            createdAt:
+              type: string
+              format: date-time
+              example: "2026-02-14T10:30:30Z"
+
+    Fee:
+      type: object
+      description: Fee information associated with a transaction or transfer.
+      properties:
+        feeType:
+          type: string
+          description: |
+            Type of fee:
+            - `TRANSACTION_FEE` - Per-transaction processing fee
+            - `TRANSFER_FEE` - Fund transfer fee
+            - `SWIFT_CHARGE` - SWIFT network charge
+            - `CORRESPONDENT_FEE` - Intermediary bank fee
+            - `FX_MARKUP` - Foreign exchange markup
+          enum: [TRANSACTION_FEE, TRANSFER_FEE, SWIFT_CHARGE, CORRESPONDENT_FEE, FX_MARKUP]
+          example: "TRANSFER_FEE"
+        amount:
+          type: object
+          properties:
+            value:
+              type: number
+              format: double
+              example: 0.00
+            currency:
+              type: string
+              example: "AED"
+        description:
+          type: string
+          description: Human-readable description of the fee.
+          example: "Free intra-bank transfers"
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          example: 1
+        pageSize:
+          type: integer
+          example: 20
+        totalRecords:
+          type: integer
+          example: 156
+        totalPages:
+          type: integer
+          example: 8
+        hasNextPage:
+          type: boolean
+          example: true
+        hasPreviousPage:
+          type: boolean
+          example: false
+
+    ErrorResponse:
+      type: object
+      required:
+        - type
+        - title
+        - status
+      properties:
+        type:
+          type: string
+          format: uri
+          example: "https://api.bank.com/errors/validation"
+        title:
+          type: string
+          example: "Validation Error"
+        status:
+          type: integer
+          example: 400
+        detail:
+          type: string
+          example: "Transfer request contains validation errors."
+        traceId:
+          type: string
+          example: "trace-400-001"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2026-02-14T10:30:00Z"
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+              code:
+                type: string
+
+  responses:
+    BadRequest:
+      description: The request was invalid or cannot be processed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/bad-request"
+            title: "Bad Request"
+            status: 400
+            detail: "The request body contains invalid or missing fields."
+            traceId: "trace-400-act-001"
+            timestamp: "2026-02-14T10:30:00Z"
+            errors:
+              - field: "amount"
+                message: "Amount must be greater than zero."
+                code: "INVALID_AMOUNT"
+    Unauthorized:
+      description: Authentication failed. The access token is missing, expired, or invalid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/unauthorized"
+            title: "Unauthorized"
+            status: 401
+            detail: "The access token has expired. Please obtain a new token."
+            traceId: "trace-401-act-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    Forbidden:
+      description: The authenticated user does not have permission to access this resource.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/forbidden"
+            title: "Forbidden"
+            status: 403
+            detail: "You do not have permission to access transactions for this account."
+            traceId: "trace-403-act-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    NotFound:
+      description: The requested resource was not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/not-found"
+            title: "Resource Not Found"
+            status: 404
+            detail: "The requested transaction or account was not found."
+            traceId: "trace-404-act-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    Conflict:
+      description: The request conflicts with the current state of the resource.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/conflict"
+            title: "Conflict"
+            status: 409
+            detail: "A transfer with this idempotency key already exists."
+            traceId: "trace-409-act-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    UnprocessableEntity:
+      description: The request was well-formed but could not be processed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/unprocessable"
+            title: "Unprocessable Entity"
+            status: 422
+            detail: "Insufficient funds in the source account."
+            traceId: "trace-422-act-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    TooManyRequests:
+      description: Rate limit exceeded. Retry after the specified duration.
+      headers:
+        Retry-After:
+          description: Number of seconds to wait before retrying.
+          schema:
+            type: integer
+            example: 60
+        X-RateLimit-Limit:
+          description: Maximum number of requests allowed per window.
+          schema:
+            type: integer
+            example: 100
+        X-RateLimit-Remaining:
+          description: Number of requests remaining in the current window.
+          schema:
+            type: integer
+            example: 0
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/rate-limit"
+            title: "Too Many Requests"
+            status: 429
+            detail: "Rate limit exceeded. Please retry after 60 seconds."
+            traceId: "trace-429-act-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    InternalServerError:
+      description: An unexpected error occurred on the server.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/internal"
+            title: "Internal Server Error"
+            status: 500
+            detail: "An unexpected error occurred. Please contact support with the trace ID."
+            traceId: "trace-500-act-001"
+            timestamp: "2026-02-14T10:30:00Z"

@@ -1,0 +1,257 @@
+# =============================================================================
+# Kubernetes Deployment Manifest for Customer API
+# =============================================================================
+# This manifest includes:
+# - Deployment with security best practices
+# - Service (ClusterIP)
+# - ConfigMap for non-sensitive configuration
+# - Secret for sensitive data (PostgreSQL credentials)
+# =============================================================================
+
+---
+# ConfigMap: Non-sensitive configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: customer-api-config
+  namespace: dpworld
+data:
+  POSTGRES_HOST: "devpostgresvinay.postgres.database.azure.com"
+  POSTGRES_DATABASE: "postgres"
+  POSTGRES_PORT: "5432"
+  USE_AZURE_AD: "true"
+  FLASK_ENV: "production"
+  PORT: "5000"
+
+---
+# Secret: Sensitive configuration (PostgreSQL credentials)
+# Note: Values must be base64 encoded
+# Example: echo -n 'your-value' | base64
+apiVersion: v1
+kind: Secret
+metadata:
+  name: customer-api-secret
+  namespace: dpworld
+type: Opaque
+data:
+  # Base64 encoded values
+  # For Azure AD user: echo -n 'admin@MngEnvMCAP463940.onmicrosoft.com' | base64
+  POSTGRES_USER: YWRtaW5ATW5nRW52TUNBUDI2Mzk0MC5vbm1pY3Jvc29mdC5jb20=
+  # If using password auth (not recommended):
+  # POSTGRES_PASSWORD: <base64-encoded-password>
+
+---
+# ServiceAccount: For Azure Workload Identity federation
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: customer-api-sa
+  namespace: dpworld
+  annotations:
+    azure.workload.identity/client-id: "f9325343-a75c-43cd-b8c8-30d98e328872"
+  labels:
+    app: customer-api
+
+---
+# Deployment: Customer API application
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: customer-api
+  namespace: dpworld
+  labels:
+    app: customer-api
+    version: v1
+spec:
+  # Number of pod replicas for high availability
+  replicas: 2
+  
+  # Rolling update strategy for zero-downtime deployments
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  
+  selector:
+    matchLabels:
+      app: customer-api
+  
+  template:
+    metadata:
+      labels:
+        app: customer-api
+        version: v1
+        azure.workload.identity/use: "true"
+    
+    spec:
+      # Security: Run as non-root user
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      
+      # Service account for Azure Workload Identity
+      serviceAccountName: customer-api-sa
+      
+      containers:
+      - name: customer-api
+        # Replace with your Azure Container Registry image
+        image: acrvk012826.azurecr.io/customer-api:latest
+        imagePullPolicy: Always
+        
+        ports:
+        - name: http
+          containerPort: 5000
+          protocol: TCP
+        
+        # Environment variables from ConfigMap
+        envFrom:
+        - configMapRef:
+            name: customer-api-config
+        
+        # Environment variables from Secret
+        env:
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: customer-api-secret
+              key: POSTGRES_USER
+        
+        # Uncomment if using password authentication
+        # - name: POSTGRES_PASSWORD
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: customer-api-secret
+        #       key: POSTGRES_PASSWORD
+        
+        # Managed Identity Client ID for PostgreSQL authentication
+        - name: MANAGED_IDENTITY_CLIENT_ID
+          value: "f9325343-a75c-43cd-b8c8-30d98e328872"
+        
+        # Resource limits and requests (best practice)
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        
+        # Liveness probe: Check if container is alive
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        
+        # Readiness probe: Check if container is ready to serve traffic
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        # Security context for container
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+            - ALL
+
+---
+# Service: Expose Customer API within cluster
+apiVersion: v1
+kind: Service
+metadata:
+  name: customer-api-service
+  namespace: dpworld
+  labels:
+    app: customer-api
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 5000
+    protocol: TCP
+    name: http
+  selector:
+    app: customer-api
+
+---
+# HorizontalPodAutoscaler: Auto-scale based on CPU/Memory
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: customer-api-hpa
+  namespace: dpworld
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: customer-api
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+
+---
+# Ingress: External access via Azure Application Gateway Ingress Controller (AGIC)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: customer-api-ingress
+  namespace: dpworld
+  labels:
+    app: customer-api
+  annotations:
+    # Health probe configuration
+    appgw.ingress.kubernetes.io/health-probe-path: /health
+    appgw.ingress.kubernetes.io/health-probe-port: "5000"
+    appgw.ingress.kubernetes.io/health-probe-interval: "30"
+    # Use private frontend IP (10.0.17.10)
+    appgw.ingress.kubernetes.io/use-private-ip: "true"
+    # Backend settings
+    appgw.ingress.kubernetes.io/backend-protocol: http
+    appgw.ingress.kubernetes.io/request-timeout: "30"
+    # Uncomment for SSL redirect
+    # appgw.ingress.kubernetes.io/ssl-redirect: "true"
+    # Uncomment for cookie-based affinity
+    # appgw.ingress.kubernetes.io/cookie-based-affinity: "true"
+spec:
+  ingressClassName: azure-application-gateway
+  rules:
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: customer-api-service
+            port:
+              number: 80
+  # Uncomment and configure for TLS
+  # tls:
+  # - hosts:
+  #   - api.yourdomain.com
+  #   secretName: customer-api-tls

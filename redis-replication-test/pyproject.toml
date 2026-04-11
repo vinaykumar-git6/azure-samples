@@ -1,0 +1,13 @@
+[project]
+name = "redis-replication-test"
+version = "1.0.0"
+description = "Test Azure Cache for Redis geo-replication"
+requires-python = ">=3.8"
+dependencies = [
+    "redis>=5.0.0",
+    "python-dotenv>=1.0.0",
+    "openpyxl>=3.1.0",
+]
+
+[project.optional-dependencies]
+dev = []

@@ -1,0 +1,36 @@
+# Variable Template for ADF Sparse Checkout Pipeline
+# Copy this file and customize for your environment
+
+variables:
+  # Azure Subscription Details
+  - name: subscriptionId
+    value: '<YOUR-SUBSCRIPTION-ID>'
+  
+  - name: resourceGroupName
+    value: 'apim-vinay-rg'
+  
+  - name: dataFactoryName
+    value: 'adfsaleslob-dev'
+  
+  - name: location
+    value: 'eastus'
+  
+  # Azure Service Connection (configured in Azure DevOps)
+  - name: azureServiceConnection
+    value: 'ADF-Fdpo-Connection'
+  
+  # Repository Settings
+  - name: repositoryUrl
+    value: 'https://dev.azure.com/vinaykumar0230/devops-demo/_git/ADFGeneric'
+  
+  # ADF Settings (empty or '.' means ADF files are at repo root)
+  - name: adfRootFolder
+    value: '.'
+  
+  # Sparse Checkout Paths (directory names only, no wildcards)
+  - name: sparseCheckoutPaths
+    value: 'pipeline,dataset,linkedService,trigger,factory,dataflow'
+  
+  # Feature Flags
+  - name: useModernSparseCheckout
+    value: 'false'

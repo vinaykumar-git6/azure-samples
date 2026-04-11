@@ -1,0 +1,1134 @@
+openapi: 3.0.3
+info:
+  title: Loans API
+  description: |
+    ## Overview
+    The **Loans API** provides end-to-end loan management including product discovery,
+    loan application, approval tracking, repayment schedules, and early settlement.
+
+    ## Supported Loan Products
+    | Product | Description | Tenure |
+    |---------|-------------|--------|
+    | Personal Loan | Unsecured consumer loan | 12-60 months |
+    | Auto Loan | Vehicle financing | 12-84 months |
+    | Home Loan | Mortgage / property financing | 60-300 months |
+    | Top-Up Loan | Additional amount on existing loan | 12-60 months |
+    | Balance Transfer | Transfer loan from another bank | 12-60 months |
+
+    ## Loan Lifecycle
+    1. **Product Discovery** — Browse loan products and check eligibility
+    2. **Application** — Submit loan application with required documents
+    3. **Processing** — Application review and credit assessment
+    4. **Approval/Rejection** — Decision communicated with terms
+    5. **Disbursement** — Funds credited to account
+    6. **Repayment** — EMI deductions per schedule
+    7. **Closure** — Full repayment or early settlement
+  version: 1.0.0
+  contact:
+    name: Banking API Support
+    email: api-support@bank.com
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+servers:
+  - url: https://api.bank.com/v1
+    description: Production
+  - url: https://sandbox.api.bank.com/v1
+    description: Sandbox
+
+tags:
+  - name: Loan Products
+    description: Browse available loan products and check eligibility.
+  - name: Loan Applications
+    description: Submit and track loan applications.
+  - name: Active Loans
+    description: Manage active loans including repayment schedules and early settlement.
+
+security:
+  - BearerAuth: []
+
+paths:
+  /loans/products:
+    get:
+      tags:
+        - Loan Products
+      summary: List loan products
+      description: |
+        Retrieves all available loan products with their interest rates, tenure options,
+        fees, and eligibility criteria. Use this to present product offerings to customers.
+      operationId: listLoanProducts
+      parameters:
+        - name: productType
+          in: query
+          required: false
+          description: Filter by loan product type.
+          schema:
+            type: string
+            enum: [PERSONAL, AUTO, HOME, TOP_UP, BALANCE_TRANSFER]
+      responses:
+        '200':
+          description: Loan products retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoanProductListResponse'
+              example:
+                data:
+                  - productId: "LP-PERSONAL-001"
+                    productName: "Personal Loan - Salaried"
+                    productType: "PERSONAL"
+                    description: "Unsecured personal loan for salaried employees with competitive interest rates and flexible repayment options."
+                    interestRate:
+                      type: "REDUCING"
+                      minRate: 4.99
+                      maxRate: 12.49
+                      rateUnit: "ANNUAL"
+                    loanAmount:
+                      minimum: 5000.00
+                      maximum: 500000.00
+                      currency: "AED"
+                    tenureMonths:
+                      minimum: 12
+                      maximum: 60
+                    processingFee:
+                      type: "PERCENTAGE"
+                      value: 1.0
+                      minimum: 250.00
+                      maximum: 5000.00
+                      currency: "AED"
+                    earlySettlementFee:
+                      type: "PERCENTAGE"
+                      value: 1.0
+                      description: "1% of outstanding principal or AED 10,000 whichever is lower"
+                    eligibility:
+                      minimumSalary: 5000.00
+                      salaryCurrency: "AED"
+                      minimumAge: 21
+                      maximumAge: 60
+                      minimumEmploymentMonths: 6
+                      nationalityRestrictions: null
+                      description: "Minimum salary AED 5,000. Employment tenure ≥ 6 months."
+                    features:
+                      - "Zero collateral required"
+                      - "Salary transfer not mandatory"
+                      - "Pre-approval available"
+                      - "Insurance optional"
+                    requiredDocuments:
+                      - "Emirates ID"
+                      - "Salary certificate / Offer letter"
+                      - "Last 3 months bank statements"
+                      - "Passport copy"
+                    isActive: true
+                  - productId: "LP-AUTO-001"
+                    productName: "Auto Loan"
+                    productType: "AUTO"
+                    description: "Vehicle financing for new and pre-owned cars with up to 80% financing of vehicle value."
+                    interestRate:
+                      type: "REDUCING"
+                      minRate: 2.99
+                      maxRate: 7.99
+                      rateUnit: "ANNUAL"
+                    loanAmount:
+                      minimum: 20000.00
+                      maximum: 1000000.00
+                      currency: "AED"
+                    tenureMonths:
+                      minimum: 12
+                      maximum: 84
+                    processingFee:
+                      type: "FIXED"
+                      value: 500.00
+                      currency: "AED"
+                    eligibility:
+                      minimumSalary: 7000.00
+                      salaryCurrency: "AED"
+                      minimumAge: 21
+                      maximumAge: 65
+                      minimumEmploymentMonths: 6
+                    features:
+                      - "Up to 80% financing"
+                      - "New and pre-owned vehicles"
+                      - "Comprehensive insurance included"
+                      - "Free vehicle registration"
+                    requiredDocuments:
+                      - "Emirates ID"
+                      - "Salary certificate"
+                      - "Vehicle quotation"
+                      - "Driving license"
+                    isActive: true
+
+  /loans/eligibility-check:
+    post:
+      tags:
+        - Loan Products
+      summary: Check loan eligibility
+      description: |
+        Performs a preliminary eligibility check for a specific loan product. This is a
+        soft check that does not affect the customer's credit score. Returns indicative
+        loan terms including maximum eligible amount and tentative interest rate.
+      operationId: checkLoanEligibility
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EligibilityCheckRequest'
+            example:
+              productId: "LP-PERSONAL-001"
+              requestedAmount: 100000.00
+              requestedTenureMonths: 36
+              monthlyIncome: 25000.00
+              incomeCurrency: "AED"
+              existingEmiAmount: 2500.00
+              employmentType: "SALARIED"
+              employerName: "Microsoft"
+              employmentTenureMonths: 36
+      responses:
+        '200':
+          description: Eligibility check completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EligibilityCheckResponse'
+              example:
+                data:
+                  eligible: true
+                  productId: "LP-PERSONAL-001"
+                  productName: "Personal Loan - Salaried"
+                  maximumEligibleAmount: 150000.00
+                  requestedAmount: 100000.00
+                  currency: "AED"
+                  indicativeInterestRate: 5.99
+                  rateType: "REDUCING"
+                  requestedTenureMonths: 36
+                  indicativeEmi:
+                    value: 3042.19
+                    currency: "AED"
+                  processingFee:
+                    value: 1000.00
+                    currency: "AED"
+                  totalInterestPayable:
+                    value: 9518.84
+                    currency: "AED"
+                  totalRepayment:
+                    value: 109518.84
+                    currency: "AED"
+                  debtBurdenRatio: 22.17
+                  maxAllowedDbr: 50.00
+                  validUntil: "2026-02-21T00:00:00Z"
+                  message: "Congratulations! You are pre-approved for up to AED 150,000."
+
+  /loans/applications:
+    post:
+      tags:
+        - Loan Applications
+      summary: Submit a loan application
+      description: |
+        Submits a new loan application. The application enters the processing pipeline and
+        goes through credit assessment, document verification, and approval workflow.
+
+        Track the application status using the `GET /loans/applications/{applicationId}` endpoint.
+      operationId: submitLoanApplication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoanApplicationRequest'
+            example:
+              productId: "LP-PERSONAL-001"
+              requestedAmount: 100000.00
+              requestedTenureMonths: 36
+              currency: "AED"
+              purpose: "HOME_RENOVATION"
+              purposeDescription: "Kitchen and bathroom renovation"
+              disbursementAccountId: "ACC-2026-001234"
+              emiDebitAccountId: "ACC-2026-001234"
+              emiDebitDay: 1
+              employment:
+                type: "SALARIED"
+                employerName: "Microsoft"
+                designation: "Senior Software Engineer"
+                monthlySalary: 25000.00
+                tenureMonths: 36
+              consent:
+                creditCheckAuthorized: true
+                termsAccepted: true
+                consentTimestamp: "2026-02-14T14:00:00Z"
+      responses:
+        '201':
+          description: Loan application submitted successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoanApplicationResponse'
+              example:
+                data:
+                  applicationId: "LA-2026-001234"
+                  status: "SUBMITTED"
+                  statusMessage: "Application received. You will be notified once reviewed."
+                  submittedAt: "2026-02-14T14:05:00Z"
+                  expectedDecisionDate: "2026-02-17"
+                  requiredDocuments:
+                    - documentType: "EMIRATES_ID"
+                      status: "PENDING"
+                      description: "Front and back scan of Emirates ID"
+                    - documentType: "SALARY_CERTIFICATE"
+                      status: "PENDING"
+                      description: "Recent salary certificate from employer"
+                    - documentType: "BANK_STATEMENT"
+                      status: "PENDING"
+                      description: "Last 3 months bank statements"
+                  nextStep: "Please upload the required documents to proceed."
+
+  /loans/applications/{applicationId}:
+    get:
+      tags:
+        - Loan Applications
+      summary: Get loan application status
+      description: |
+        Retrieves the current status and details of a loan application including
+        document status, approval decision, and offered terms.
+      operationId: getLoanApplication
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "LA-2026-001234"
+      responses:
+        '200':
+          description: Application details retrieved.
+          content:
+            application/json:
+              example:
+                data:
+                  applicationId: "LA-2026-001234"
+                  productName: "Personal Loan - Salaried"
+                  requestedAmount:
+                    value: 100000.00
+                    currency: "AED"
+                  status: "APPROVED"
+                  statusHistory:
+                    - status: "SUBMITTED"
+                      timestamp: "2026-02-14T14:05:00Z"
+                    - status: "DOCUMENTS_VERIFIED"
+                      timestamp: "2026-02-15T09:00:00Z"
+                    - status: "CREDIT_ASSESSMENT"
+                      timestamp: "2026-02-15T10:30:00Z"
+                    - status: "APPROVED"
+                      timestamp: "2026-02-16T11:00:00Z"
+                  approvedTerms:
+                    approvedAmount:
+                      value: 100000.00
+                      currency: "AED"
+                    interestRate: 5.99
+                    rateType: "REDUCING"
+                    tenureMonths: 36
+                    emiAmount:
+                      value: 3042.19
+                      currency: "AED"
+                    processingFee:
+                      value: 1000.00
+                      currency: "AED"
+                    insurancePremium:
+                      value: 500.00
+                      currency: "AED"
+                    totalRepayment:
+                      value: 109518.84
+                      currency: "AED"
+                    firstEmiDate: "2026-04-01"
+                    offerValidUntil: "2026-02-23"
+                  documents:
+                    - documentType: "EMIRATES_ID"
+                      status: "VERIFIED"
+                    - documentType: "SALARY_CERTIFICATE"
+                      status: "VERIFIED"
+                    - documentType: "BANK_STATEMENT"
+                      status: "VERIFIED"
+                  nextStep: "Please accept the offer to proceed with disbursement."
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /loans:
+    get:
+      tags:
+        - Active Loans
+      summary: List active loans
+      description: |
+        Retrieves all active and closed loans for the authenticated customer. Includes
+        outstanding balance, next EMI details, and repayment progress.
+      operationId: listLoans
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [ACTIVE, CLOSED, OVERDUE, WRITTEN_OFF]
+      responses:
+        '200':
+          description: Loans retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoanListResponse'
+              example:
+                data:
+                  - loanId: "LN-2026-001234"
+                    loanAccountNumber: "LN-ACC-56789012"
+                    productName: "Personal Loan - Salaried"
+                    productType: "PERSONAL"
+                    status: "ACTIVE"
+                    disbursementDate: "2024-06-15"
+                    maturityDate: "2027-06-15"
+                    sanctionedAmount:
+                      value: 150000.00
+                      currency: "AED"
+                    disbursedAmount:
+                      value: 148500.00
+                      currency: "AED"
+                    outstandingPrincipal:
+                      value: 87450.30
+                      currency: "AED"
+                    outstandingInterest:
+                      value: 1245.00
+                      currency: "AED"
+                    totalOutstanding:
+                      value: 88695.30
+                      currency: "AED"
+                    interestRate: 5.99
+                    emiAmount:
+                      value: 4563.28
+                      currency: "AED"
+                    emiDay: 1
+                    nextEmiDate: "2026-03-01"
+                    totalEmis: 36
+                    paidEmis: 21
+                    remainingEmis: 15
+                    totalInterestPaid:
+                      value: 13828.88
+                      currency: "AED"
+                    totalPrincipalPaid:
+                      value: 62549.70
+                      currency: "AED"
+                    overdueAmount:
+                      value: 0.00
+                      currency: "AED"
+                    lastEmiPaidDate: "2026-02-01"
+                    repaymentProgress: 58.33
+
+  /loans/{loanId}/schedule:
+    get:
+      tags:
+        - Active Loans
+      summary: Get EMI repayment schedule
+      description: |
+        Retrieves the complete EMI repayment schedule (amortization table) for a loan.
+        Shows the principal and interest breakdown for each instalment, paid and upcoming.
+      operationId: getLoanSchedule
+      parameters:
+        - name: loanId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "LN-2026-001234"
+      responses:
+        '200':
+          description: Repayment schedule retrieved.
+          content:
+            application/json:
+              example:
+                data:
+                  loanId: "LN-2026-001234"
+                  schedule:
+                    - installmentNumber: 1
+                      dueDate: "2024-07-01"
+                      emiAmount: 4563.28
+                      principalComponent: 3815.03
+                      interestComponent: 748.25
+                      outstandingAfterEmi: 146184.97
+                      status: "PAID"
+                      paidDate: "2024-07-01"
+                    - installmentNumber: 21
+                      dueDate: "2026-02-01"
+                      emiAmount: 4563.28
+                      principalComponent: 4127.53
+                      interestComponent: 435.75
+                      outstandingAfterEmi: 87450.30
+                      status: "PAID"
+                      paidDate: "2026-02-01"
+                    - installmentNumber: 22
+                      dueDate: "2026-03-01"
+                      emiAmount: 4563.28
+                      principalComponent: 4148.15
+                      interestComponent: 415.13
+                      outstandingAfterEmi: 83302.15
+                      status: "UPCOMING"
+                    - installmentNumber: 36
+                      dueDate: "2027-06-01"
+                      emiAmount: 4563.28
+                      principalComponent: 4541.74
+                      interestComponent: 21.54
+                      outstandingAfterEmi: 0.00
+                      status: "UPCOMING"
+                  summary:
+                    totalEmiAmount: 164278.08
+                    totalPrincipal: 150000.00
+                    totalInterest: 14278.08
+                    currency: "AED"
+
+  /loans/{loanId}/early-settlement:
+    get:
+      tags:
+        - Active Loans
+      summary: Get early settlement quote
+      description: |
+        Calculates the early settlement amount for a loan including any applicable
+        early settlement fees and interest accrued up to the settlement date.
+      operationId: getEarlySettlementQuote
+      parameters:
+        - name: loanId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: settlementDate
+          in: query
+          required: false
+          description: Desired settlement date. Defaults to today.
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Early settlement quote generated.
+          content:
+            application/json:
+              example:
+                data:
+                  loanId: "LN-2026-001234"
+                  quoteDate: "2026-02-14"
+                  settlementDate: "2026-02-28"
+                  outstandingPrincipal:
+                    value: 87450.30
+                    currency: "AED"
+                  accruedInterest:
+                    value: 589.40
+                    currency: "AED"
+                  earlySettlementFee:
+                    value: 874.50
+                    currency: "AED"
+                    description: "1% of outstanding principal"
+                  totalSettlementAmount:
+                    value: 88914.20
+                    currency: "AED"
+                  savingsOnInterest:
+                    value: 5163.72
+                    currency: "AED"
+                    description: "Interest you save by settling early"
+                  quoteValidUntil: "2026-02-28T23:59:59Z"
+                  message: "By settling early, you save AED 5,163.72 in interest charges."
+
+    post:
+      tags:
+        - Active Loans
+      summary: Process early settlement
+      description: |
+        Processes early settlement for a loan. Debits the settlement amount from the
+        specified account and closes the loan.
+      operationId: processEarlySettlement
+      parameters:
+        - name: loanId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: X-Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example:
+              debitAccountId: "ACC-2026-001234"
+              settlementDate: "2026-02-28"
+              acceptedAmount: 88914.20
+              currency: "AED"
+      responses:
+        '200':
+          description: Early settlement processed.
+          content:
+            application/json:
+              example:
+                data:
+                  loanId: "LN-2026-001234"
+                  settlementId: "STLMT-2026-0214-001"
+                  status: "PROCESSING"
+                  amountDebited:
+                    value: 88914.20
+                    currency: "AED"
+                  expectedClosureDate: "2026-02-28"
+                  message: "Early settlement initiated. Loan will be closed by the settlement date."
+        '422':
+          description: Insufficient funds.
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    LoanProductListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/LoanProduct'
+
+    LoanProduct:
+      type: object
+      properties:
+        productId:
+          type: string
+          description: Unique identifier for the loan product.
+          example: "LP-PERSONAL-001"
+        productName:
+          type: string
+          description: Display name of the loan product.
+          example: "Personal Loan - Salaried"
+        productType:
+          type: string
+          enum: [PERSONAL, AUTO, HOME, TOP_UP, BALANCE_TRANSFER]
+          example: "PERSONAL"
+        description:
+          type: string
+          description: Detailed description of the loan product.
+        interestRate:
+          type: object
+          properties:
+            type:
+              type: string
+              description: |
+                Interest calculation method:
+                - `REDUCING` — Interest on outstanding balance (recommended)
+                - `FLAT` — Interest on original principal
+              enum: [REDUCING, FLAT]
+            minRate:
+              type: number
+              format: double
+              description: Minimum annual interest rate (best-case).
+            maxRate:
+              type: number
+              format: double
+              description: Maximum annual interest rate.
+            rateUnit:
+              type: string
+              enum: [ANNUAL, MONTHLY]
+        loanAmount:
+          type: object
+          properties:
+            minimum:
+              type: number
+              format: double
+            maximum:
+              type: number
+              format: double
+            currency:
+              type: string
+        tenureMonths:
+          type: object
+          properties:
+            minimum:
+              type: integer
+            maximum:
+              type: integer
+        processingFee:
+          type: object
+          properties:
+            type:
+              type: string
+              enum: [PERCENTAGE, FIXED]
+            value:
+              type: number
+              format: double
+            minimum:
+              type: number
+              format: double
+            maximum:
+              type: number
+              format: double
+            currency:
+              type: string
+        earlySettlementFee:
+          type: object
+          properties:
+            type:
+              type: string
+              enum: [PERCENTAGE, FIXED]
+            value:
+              type: number
+              format: double
+            description:
+              type: string
+        eligibility:
+          type: object
+          properties:
+            minimumSalary:
+              type: number
+              format: double
+            salaryCurrency:
+              type: string
+            minimumAge:
+              type: integer
+            maximumAge:
+              type: integer
+            minimumEmploymentMonths:
+              type: integer
+            nationalityRestrictions:
+              type: array
+              items:
+                type: string
+              nullable: true
+            description:
+              type: string
+        features:
+          type: array
+          items:
+            type: string
+        requiredDocuments:
+          type: array
+          items:
+            type: string
+        isActive:
+          type: boolean
+
+    EligibilityCheckRequest:
+      type: object
+      required:
+        - productId
+        - requestedAmount
+        - requestedTenureMonths
+        - monthlyIncome
+      properties:
+        productId:
+          type: string
+          example: "LP-PERSONAL-001"
+        requestedAmount:
+          type: number
+          format: double
+          example: 100000.00
+        requestedTenureMonths:
+          type: integer
+          example: 36
+        monthlyIncome:
+          type: number
+          format: double
+          example: 25000.00
+        incomeCurrency:
+          type: string
+          default: "AED"
+        existingEmiAmount:
+          type: number
+          format: double
+          description: Total of all current EMI obligations.
+          example: 2500.00
+        employmentType:
+          type: string
+          enum: [SALARIED, SELF_EMPLOYED, BUSINESS_OWNER]
+        employerName:
+          type: string
+        employmentTenureMonths:
+          type: integer
+
+    EligibilityCheckResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            eligible:
+              type: boolean
+              description: Whether the customer is eligible for the loan.
+            productId:
+              type: string
+            productName:
+              type: string
+            maximumEligibleAmount:
+              type: number
+              format: double
+            requestedAmount:
+              type: number
+              format: double
+            currency:
+              type: string
+            indicativeInterestRate:
+              type: number
+              format: double
+            rateType:
+              type: string
+            requestedTenureMonths:
+              type: integer
+            indicativeEmi:
+              type: object
+              properties:
+                value:
+                  type: number
+                  format: double
+                currency:
+                  type: string
+            processingFee:
+              type: object
+              properties:
+                value:
+                  type: number
+                  format: double
+                currency:
+                  type: string
+            totalInterestPayable:
+              type: object
+              properties:
+                value:
+                  type: number
+                  format: double
+                currency:
+                  type: string
+            totalRepayment:
+              type: object
+              properties:
+                value:
+                  type: number
+                  format: double
+                currency:
+                  type: string
+            debtBurdenRatio:
+              type: number
+              format: double
+              description: Debt-to-income ratio as percentage.
+            maxAllowedDbr:
+              type: number
+              format: double
+            validUntil:
+              type: string
+              format: date-time
+            message:
+              type: string
+
+    LoanApplicationRequest:
+      type: object
+      required:
+        - productId
+        - requestedAmount
+        - requestedTenureMonths
+        - currency
+        - disbursementAccountId
+        - emiDebitAccountId
+        - employment
+        - consent
+      properties:
+        productId:
+          type: string
+        requestedAmount:
+          type: number
+          format: double
+          minimum: 1000
+        requestedTenureMonths:
+          type: integer
+          minimum: 6
+        currency:
+          type: string
+          default: "AED"
+        purpose:
+          type: string
+          enum: [HOME_RENOVATION, EDUCATION, MEDICAL, TRAVEL, WEDDING, DEBT_CONSOLIDATION, VEHICLE, BUSINESS, OTHER]
+        purposeDescription:
+          type: string
+          maxLength: 256
+        disbursementAccountId:
+          type: string
+          description: Account to receive the loan disbursement.
+        emiDebitAccountId:
+          type: string
+          description: Account for EMI auto-debit.
+        emiDebitDay:
+          type: integer
+          description: Day of month for EMI debit (1-28).
+          minimum: 1
+          maximum: 28
+        employment:
+          type: object
+          required:
+            - type
+            - monthlySalary
+          properties:
+            type:
+              type: string
+              enum: [SALARIED, SELF_EMPLOYED, BUSINESS_OWNER]
+            employerName:
+              type: string
+            designation:
+              type: string
+            monthlySalary:
+              type: number
+              format: double
+            tenureMonths:
+              type: integer
+        consent:
+          type: object
+          required:
+            - creditCheckAuthorized
+            - termsAccepted
+          properties:
+            creditCheckAuthorized:
+              type: boolean
+              description: Customer consent for credit bureau check.
+            termsAccepted:
+              type: boolean
+              description: Customer acceptance of terms and conditions.
+            consentTimestamp:
+              type: string
+              format: date-time
+
+    LoanApplicationResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            applicationId:
+              type: string
+            status:
+              type: string
+              enum: [SUBMITTED, DOCUMENTS_PENDING, DOCUMENTS_VERIFIED, CREDIT_ASSESSMENT, APPROVED, REJECTED, DISBURSED, CANCELLED]
+            statusMessage:
+              type: string
+            submittedAt:
+              type: string
+              format: date-time
+            expectedDecisionDate:
+              type: string
+              format: date
+            requiredDocuments:
+              type: array
+              items:
+                type: object
+                properties:
+                  documentType:
+                    type: string
+                  status:
+                    type: string
+                    enum: [PENDING, UPLOADED, VERIFIED, REJECTED]
+                  description:
+                    type: string
+            nextStep:
+              type: string
+
+    LoanListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/LoanSummary'
+
+    LoanSummary:
+      type: object
+      properties:
+        loanId:
+          type: string
+          example: "LN-2026-001234"
+        loanAccountNumber:
+          type: string
+          example: "LN-ACC-56789012"
+        productName:
+          type: string
+        productType:
+          type: string
+          enum: [PERSONAL, AUTO, HOME, TOP_UP, BALANCE_TRANSFER]
+        status:
+          type: string
+          enum: [ACTIVE, CLOSED, OVERDUE, WRITTEN_OFF]
+        disbursementDate:
+          type: string
+          format: date
+        maturityDate:
+          type: string
+          format: date
+        sanctionedAmount:
+          type: object
+          properties:
+            value:
+              type: number
+              format: double
+            currency:
+              type: string
+        outstandingPrincipal:
+          type: object
+          properties:
+            value:
+              type: number
+              format: double
+            currency:
+              type: string
+        totalOutstanding:
+          type: object
+          properties:
+            value:
+              type: number
+              format: double
+            currency:
+              type: string
+        interestRate:
+          type: number
+          format: double
+        emiAmount:
+          type: object
+          properties:
+            value:
+              type: number
+              format: double
+            currency:
+              type: string
+        nextEmiDate:
+          type: string
+          format: date
+        totalEmis:
+          type: integer
+        paidEmis:
+          type: integer
+        remainingEmis:
+          type: integer
+        repaymentProgress:
+          type: number
+          format: double
+          description: Percentage of loan repaid.
+
+    ErrorResponse:
+      type: object
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        traceId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+  responses:
+    BadRequest:
+      description: The request was invalid or cannot be processed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/bad-request"
+            title: "Bad Request"
+            status: 400
+            detail: "The loan application contains invalid or missing fields."
+            traceId: "trace-400-loan-001"
+            timestamp: "2026-02-14T10:30:00Z"
+            errors:
+              - field: "requestedAmount"
+                message: "Requested amount exceeds maximum eligible amount."
+                code: "EXCEEDS_LIMIT"
+    Unauthorized:
+      description: Authentication failed. The access token is missing, expired, or invalid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/unauthorized"
+            title: "Unauthorized"
+            status: 401
+            detail: "The access token has expired. Please obtain a new token."
+            traceId: "trace-401-loan-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    Forbidden:
+      description: The authenticated user does not have permission to access this resource.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/forbidden"
+            title: "Forbidden"
+            status: 403
+            detail: "You do not have permission to access loan details for this customer."
+            traceId: "trace-403-loan-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    NotFound:
+      description: The requested resource was not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/not-found"
+            title: "Resource Not Found"
+            status: 404
+            detail: "The requested loan or application was not found."
+            traceId: "trace-404-loan-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    UnprocessableEntity:
+      description: The request was well-formed but could not be processed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/unprocessable"
+            title: "Unprocessable Entity"
+            status: 422
+            detail: "Insufficient funds for early settlement. Required: AED 125,000.00, Available: AED 45,000.00."
+            traceId: "trace-422-loan-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    TooManyRequests:
+      description: Rate limit exceeded. Retry after the specified duration.
+      headers:
+        Retry-After:
+          description: Number of seconds to wait before retrying.
+          schema:
+            type: integer
+            example: 60
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/rate-limit"
+            title: "Too Many Requests"
+            status: 429
+            detail: "Rate limit exceeded. Please retry after 60 seconds."
+            traceId: "trace-429-loan-001"
+            timestamp: "2026-02-14T10:30:00Z"
+    InternalServerError:
+      description: An unexpected error occurred on the server.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.bank.com/errors/internal"
+            title: "Internal Server Error"
+            status: 500
+            detail: "An unexpected error occurred. Please contact support with the trace ID."
+            traceId: "trace-500-loan-001"
+            timestamp: "2026-02-14T10:30:00Z"

@@ -1,0 +1,242 @@
+# ============================================================
+#  azure-pipelines-register-mcp-bicep.yml
+#
+#  PURPOSE:
+#    Register / update an MCP server in Azure API Center using Bicep.
+#
+#  HOW IT WORKS (2-step approach):
+#    Step 1 — az deployment group create (Bicep)
+#             Declaratively creates/updates: API → Version → Definition
+#             Bicep is idempotent — safe to re-run on every push.
+#
+#    Step 2 — az apic api definition import-specification (CLI)
+#             Uploads the actual spec file content into the definition.
+#             This is a POST action, not a declarative resource,
+#             so it must be done via CLI after the Bicep deployment.
+#
+#  SETUP:
+#    1. Create Service Connection "azure-apic-sc" in ADO
+#       (Project Settings → Service Connections → Azure RM)
+#    2. Grant the SP "API Center Service Contributor" on the APIC RG
+#    3. Copy this file + bicep/ folder into your MCP server repo
+#    4. Edit the variables section below
+# ============================================================
+
+trigger:
+  branches:
+    include:
+      - main
+      - master
+  paths:
+    include:
+      - "**/*.json"
+      - "**/*.yaml"
+      - "**/*.yml"
+      - "bicep/**"
+    exclude:
+      - "azure-pipelines*.yml"
+
+pr:
+  branches:
+    include:
+      - main
+      - master
+
+# ── Variables ──────────────────────────────────────────────────────────────────
+variables:
+  # ---- Azure / ADO -------------------------------------------------------
+  AZURE_SERVICE_CONNECTION: "azure-apic-sc"
+  AZURE_SUBSCRIPTION_ID:    "<YOUR-SUBSCRIPTION-ID>"
+  AZURE_RESOURCE_GROUP:     "azure-vk-rg"
+
+  # ---- APIC target -------------------------------------------------------
+  APIC_SERVICE:    "vinayorg-apic"
+
+  # ---- MCP Server identity -----------------------------------------------
+  API_ID:       "weather-mcp"             # ← change per server
+  API_VERSION:  "v1"
+  DEFINITION_ID: "openapi"
+
+  # ---- Spec file ---------------------------------------------------------
+  SPEC_FILE:    "openapi.json"            # ← path in repo
+  SPEC_FORMAT:  "openapi"                 # openapi | asyncapi | other
+  SPEC_VERSION: "3.0.0"
+
+  # ---- Bicep files -------------------------------------------------------
+  BICEP_FILE:        "$(Build.SourcesDirectory)/bicep/apic-mcp.bicep"
+  BICEP_PARAMS_FILE: "$(Build.SourcesDirectory)/bicep/apic-mcp.bicepparam"
+
+  # Unique deployment name (avoids collision in concurrent runs)
+  DEPLOYMENT_NAME: "apic-mcp-$(Build.BuildNumber)"
+
+# ── Stages ─────────────────────────────────────────────────────────────────────
+stages:
+
+# ─────────────────────────────────────────────────────────────────────────────
+# STAGE 1 — Validate Bicep + Spec
+# ─────────────────────────────────────────────────────────────────────────────
+- stage: Validate
+  displayName: "Validate Bicep & Spec"
+  jobs:
+  - job: ValidateBicep
+    displayName: "Bicep what-if + spec lint"
+    pool:
+      vmImage: "ubuntu-latest"
+
+    steps:
+    - checkout: self
+      displayName: "Checkout source"
+
+    # ── Check spec file exists ────────────────────────────────────────────
+    - bash: |
+        if [ ! -f "$(SPEC_FILE)" ]; then
+          echo "##vso[task.logissue type=error]Spec file not found: $(SPEC_FILE)"
+          exit 1
+        fi
+        echo "Spec file found: $(SPEC_FILE)"
+        wc -c < "$(SPEC_FILE)" | xargs -I{} echo "Spec file size: {} bytes"
+      displayName: "Check spec file exists"
+
+    # ── Validate JSON/YAML syntax ─────────────────────────────────────────
+    - bash: |
+        python3 -c "
+        import json, sys
+        try:
+            with open('$(SPEC_FILE)') as f: json.load(f)
+            print('JSON syntax valid')
+        except Exception as e:
+            print(f'Error: {e}', file=sys.stderr); sys.exit(1)
+        "
+      displayName: "Validate spec syntax"
+      condition: endsWith(variables['SPEC_FILE'], '.json')
+
+    # ── Bicep what-if (dry run — shows what WOULD change, no actual deploy) ─
+    - task: AzureCLI@2
+      displayName: "Bicep what-if (dry run)"
+      inputs:
+        azureSubscription: "$(AZURE_SERVICE_CONNECTION)"
+        scriptType: "bash"
+        scriptLocation: "inlineScript"
+        inlineScript: |
+          az bicep install --only-show-errors 2>&1 | tail -1
+
+          echo "Running what-if for Bicep deployment..."
+          az deployment group what-if \
+            --resource-group "$(AZURE_RESOURCE_GROUP)" \
+            --name            "$(DEPLOYMENT_NAME)-whatif" \
+            --template-file   "$(BICEP_FILE)" \
+            --parameters      "$(BICEP_PARAMS_FILE)" \
+            --result-format   "FullResourcePayloads" \
+            --no-pretty-print
+
+          echo "What-if completed successfully"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# STAGE 2 — Deploy Bicep (API + Version + Definition metadata)
+# ─────────────────────────────────────────────────────────────────────────────
+- stage: DeployBicep
+  displayName: "Deploy Bicep (API metadata)"
+  dependsOn: Validate
+  condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+
+  jobs:
+  - deployment: BicepDeploy
+    displayName: "az deployment group create"
+    pool:
+      vmImage: "ubuntu-latest"
+    environment: "apic-$(APIC_SERVICE)"     # add approval gates here if needed
+
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - checkout: self
+            displayName: "Checkout source"
+
+          - task: AzureCLI@2
+            displayName: "Deploy Bicep → APIC resources"
+            name: BicepOutput            # allows reading outputs in next step
+            inputs:
+              azureSubscription: "$(AZURE_SERVICE_CONNECTION)"
+              scriptType: "bash"
+              scriptLocation: "inlineScript"
+              inlineScript: |
+                az bicep install --only-show-errors 2>&1 | tail -1
+
+                echo "Deploying Bicep template..."
+                DEPLOY_OUTPUT=$(az deployment group create \
+                  --resource-group "$(AZURE_RESOURCE_GROUP)" \
+                  --name            "$(DEPLOYMENT_NAME)" \
+                  --template-file   "$(BICEP_FILE)" \
+                  --parameters      "$(BICEP_PARAMS_FILE)" \
+                  --query           "properties.outputs" \
+                  --output          json)
+
+                echo "Bicep deployment outputs:"
+                echo "$DEPLOY_OUTPUT"
+
+                # Expose outputs as pipeline variables for Stage 3
+                DEFINITION_PATH=$(echo "$DEPLOY_OUTPUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['definitionPath']['value'])")
+                echo "##vso[task.setvariable variable=DEFINITION_PATH;isOutput=true]$DEFINITION_PATH"
+                echo "Bicep deployment succeeded. Definition path: $DEFINITION_PATH"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# STAGE 3 — Import spec (POST action — must be CLI, not Bicep)
+# ─────────────────────────────────────────────────────────────────────────────
+- stage: ImportSpec
+  displayName: "Import Spec into Definition"
+  dependsOn: DeployBicep
+  condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+  variables:
+    # Pick up the output piped from Stage 2
+    DEFINITION_PATH: $[ stageDependencies.DeployBicep.BicepDeploy.outputs['BicepDeploy_BicepOutput.DEFINITION_PATH'] ]
+
+  jobs:
+  - deployment: ImportSpecJob
+    displayName: "az apic definition import-specification"
+    pool:
+      vmImage: "ubuntu-latest"
+    environment: "apic-$(APIC_SERVICE)"
+
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - checkout: self
+            displayName: "Checkout source"
+
+          - task: AzureCLI@2
+            displayName: "Import spec into APIC definition"
+            inputs:
+              azureSubscription: "$(AZURE_SERVICE_CONNECTION)"
+              scriptType: "bash"
+              scriptLocation: "inlineScript"
+              inlineScript: |
+                az extension add --name apic-extension --upgrade --only-show-errors 2>&1 | tail -1
+
+                SPEC_CONTENT=$(cat "$(SPEC_FILE)")
+
+                echo "Importing spec into: $(APIC_SERVICE) / $(API_ID) / $(API_VERSION) / $(DEFINITION_ID)"
+
+                az apic api definition import-specification \
+                  --service-name    "$(APIC_SERVICE)" \
+                  --resource-group  "$(AZURE_RESOURCE_GROUP)" \
+                  --api-id          "$(API_ID)" \
+                  --version-id      "$(API_VERSION)" \
+                  --definition-id   "$(DEFINITION_ID)" \
+                  --format          inline \
+                  --value           "$SPEC_CONTENT" \
+                  --specification   "{\"name\":\"$(SPEC_FORMAT)\",\"version\":\"$(SPEC_VERSION)\"}"
+
+                echo ""
+                echo "========================================================"
+                echo "  SUCCESS: MCP server registered in Azure API Center"
+                echo "  Service    : $(APIC_SERVICE)"
+                echo "  API ID     : $(API_ID)  Version: $(API_VERSION)"
+                echo "  Spec file  : $(SPEC_FILE)"
+                echo ""
+                echo "  Portal:"
+                echo "  https://portal.azure.com/#view/Microsoft_Azure_ApiCenter/ResourceMenuBlade/~/apis/resourceId/%2Fsubscriptions%2F$(AZURE_SUBSCRIPTION_ID)%2FresourceGroups%2F$(AZURE_RESOURCE_GROUP)%2Fproviders%2FMicrosoft.ApiCenter%2Fservices%2F$(APIC_SERVICE)"
+                echo "========================================================"

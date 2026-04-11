@@ -1,0 +1,301 @@
+################################################################################
+# Azure API Center – Registration Pipeline
+# Registers an API, creates a version, environment, and deployment in API Center
+################################################################################
+
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - api-spec/**
+      - azure-pipelines.yml
+
+parameters:
+  - name: apiId
+    displayName: "API ID (unique slug, e.g. my-payments-api)"
+    type: string
+    default: ""
+
+  - name: apiTitle
+    displayName: "API Title (human readable)"
+    type: string
+    default: ""
+
+  - name: apiKind
+    displayName: "API Kind"
+    type: string
+    default: rest
+    values:
+      - rest
+      - graphql
+      - grpc
+      - soap
+      - webhook
+      - websocket
+      - mcp
+
+  - name: apiVersion
+    displayName: "API Version (e.g. 1.0.0)"
+    type: string
+    default: "1.0.0"
+
+  - name: lifecycleStage
+    displayName: "Lifecycle Stage"
+    type: string
+    default: development
+    values:
+      - design
+      - development
+      - testing
+      - preview
+      - production
+      - deprecated
+      - retired
+
+  - name: environmentId
+    displayName: "Environment ID (e.g. prod-env)"
+    type: string
+    default: ""
+
+  - name: environmentTitle
+    displayName: "Environment Title"
+    type: string
+    default: ""
+
+  - name: environmentKind
+    displayName: "Environment Kind"
+    type: string
+    default: production
+    values:
+      - development
+      - testing
+      - staging
+      - production
+
+  - name: serverUrl
+    displayName: "API Server URL (deployment runtime URL)"
+    type: string
+    default: ""
+
+  - name: specFile
+    displayName: "OpenAPI Spec file path (relative to repo root)"
+    type: string
+    default: "api-spec/openapi.yaml"
+
+  - name: specFormat
+    displayName: "Spec Format"
+    type: string
+    default: openapi
+    values:
+      - openapi
+      - asyncapi
+      - graphql
+      - grpc
+      - wsdl
+      - other
+
+variables:
+  # ── API Center target ──────────────────────────────────────────────────────
+  apicServiceName:    "vinayorg-apic"
+  apicResourceGroup:  "azure-vk-rg"
+  apicSubscription:   "<YOUR-SUBSCRIPTION-ID>"
+  apicWorkspace:      "default"
+
+  # ── Derived slugs (version and deployment IDs must be URL-safe) ───────────
+  versionSlug:     ${{ replace(parameters.apiVersion, '.', '-') }}
+  deploymentId:    ${{ replace(parameters.apiId, ' ', '-') }}-${{ replace(parameters.apiVersion, '.', '-') }}-deployment
+
+stages:
+
+  # ────────────────────────────────────────────────────────────────────────────
+  - stage: ValidateInputs
+    displayName: "Validate Inputs"
+    jobs:
+      - job: Validate
+        displayName: "Validate Required Parameters"
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - script: |
+              if [ -z "${{ parameters.apiId }}" ]; then
+                echo "##vso[task.logissue type=error]apiId parameter is required"
+                exit 1
+              fi
+              if [ -z "${{ parameters.apiTitle }}" ]; then
+                echo "##vso[task.logissue type=error]apiTitle parameter is required"
+                exit 1
+              fi
+              if [ -z "${{ parameters.environmentId }}" ]; then
+                echo "##vso[task.logissue type=error]environmentId parameter is required"
+                exit 1
+              fi
+              if [ -z "${{ parameters.serverUrl }}" ]; then
+                echo "##vso[task.logissue type=error]serverUrl parameter is required"
+                exit 1
+              fi
+              echo "✅ All required parameters provided"
+              echo "  API ID:        ${{ parameters.apiId }}"
+              echo "  API Title:     ${{ parameters.apiTitle }}"
+              echo "  Version:       ${{ parameters.apiVersion }}"
+              echo "  Environment:   ${{ parameters.environmentId }}"
+              echo "  Server URL:    ${{ parameters.serverUrl }}"
+            displayName: "Check Required Parameters"
+
+  # ────────────────────────────────────────────────────────────────────────────
+  - stage: RegisterAPI
+    displayName: "Register API in API Center"
+    dependsOn: ValidateInputs
+    jobs:
+      - job: RegisterAPI
+        displayName: "Create / Update API"
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - task: AzureCLI@2
+            displayName: "Register API"
+            inputs:
+              azureSubscription: "$(AZURE_SERVICE_CONNECTION)"
+              scriptType: bash
+              scriptLocation: scriptPath
+              scriptPath: scripts/register-api.sh
+              arguments: >
+                --subscription   "$(apicSubscription)"
+                --resource-group "$(apicResourceGroup)"
+                --service-name   "$(apicServiceName)"
+                --api-id         "${{ parameters.apiId }}"
+                --api-title      "${{ parameters.apiTitle }}"
+                --api-kind       "${{ parameters.apiKind }}"
+
+  # ────────────────────────────────────────────────────────────────────────────
+  - stage: CreateVersion
+    displayName: "Create API Version"
+    dependsOn: RegisterAPI
+    jobs:
+      - job: CreateVersion
+        displayName: "Create Version ${{ parameters.apiVersion }}"
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - task: AzureCLI@2
+            displayName: "Create API Version"
+            inputs:
+              azureSubscription: "$(AZURE_SERVICE_CONNECTION)"
+              scriptType: bash
+              scriptLocation: scriptPath
+              scriptPath: scripts/create-version.sh
+              arguments: >
+                --subscription   "$(apicSubscription)"
+                --resource-group "$(apicResourceGroup)"
+                --service-name   "$(apicServiceName)"
+                --api-id         "${{ parameters.apiId }}"
+                --version        "${{ parameters.apiVersion }}"
+                --version-id     "$(versionSlug)"
+                --lifecycle      "${{ parameters.lifecycleStage }}"
+
+          - task: AzureCLI@2
+            displayName: "Upload API Spec"
+            condition: ne('${{ parameters.specFile }}', '')
+            inputs:
+              azureSubscription: "$(AZURE_SERVICE_CONNECTION)"
+              scriptType: bash
+              scriptLocation: scriptPath
+              scriptPath: scripts/upload-spec.sh
+              arguments: >
+                --subscription   "$(apicSubscription)"
+                --resource-group "$(apicResourceGroup)"
+                --service-name   "$(apicServiceName)"
+                --api-id         "${{ parameters.apiId }}"
+                --version-id     "$(versionSlug)"
+                --spec-file      "${{ parameters.specFile }}"
+                --spec-format    "${{ parameters.specFormat }}"
+
+  # ────────────────────────────────────────────────────────────────────────────
+  - stage: CreateEnvironment
+    displayName: "Create Environment"
+    dependsOn: ValidateInputs
+    jobs:
+      - job: CreateEnvironment
+        displayName: "Create Environment ${{ parameters.environmentId }}"
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - task: AzureCLI@2
+            displayName: "Create Environment"
+            inputs:
+              azureSubscription: "$(AZURE_SERVICE_CONNECTION)"
+              scriptType: bash
+              scriptLocation: scriptPath
+              scriptPath: scripts/create-environment.sh
+              arguments: >
+                --subscription     "$(apicSubscription)"
+                --resource-group   "$(apicResourceGroup)"
+                --service-name     "$(apicServiceName)"
+                --environment-id   "${{ parameters.environmentId }}"
+                --environment-title "${{ coalesce(parameters.environmentTitle, parameters.environmentId) }}"
+                --environment-kind "${{ parameters.environmentKind }}"
+                --server-url       "${{ parameters.serverUrl }}"
+
+  # ────────────────────────────────────────────────────────────────────────────
+  - stage: CreateDeployment
+    displayName: "Create Deployment"
+    dependsOn:
+      - CreateVersion
+      - CreateEnvironment
+    jobs:
+      - job: CreateDeployment
+        displayName: "Link API → Environment"
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - task: AzureCLI@2
+            displayName: "Create Deployment"
+            inputs:
+              azureSubscription: "$(AZURE_SERVICE_CONNECTION)"
+              scriptType: bash
+              scriptLocation: scriptPath
+              scriptPath: scripts/create-deployment.sh
+              arguments: >
+                --subscription   "$(apicSubscription)"
+                --resource-group "$(apicResourceGroup)"
+                --service-name   "$(apicServiceName)"
+                --api-id         "${{ parameters.apiId }}"
+                --version-id     "$(versionSlug)"
+                --environment-id "${{ parameters.environmentId }}"
+                --deployment-id  "$(deploymentId)"
+                --server-url     "${{ parameters.serverUrl }}"
+
+  # ────────────────────────────────────────────────────────────────────────────
+  - stage: Summary
+    displayName: "Print Summary"
+    dependsOn: CreateDeployment
+    jobs:
+      - job: Summary
+        displayName: "Registration Summary"
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - task: AzureCLI@2
+            displayName: "Show Registered API"
+            inputs:
+              azureSubscription: "$(AZURE_SERVICE_CONNECTION)"
+              scriptType: bash
+              scriptContent: |
+                echo "════════════════════════════════════════════════"
+                echo "  API Center Registration Complete"
+                echo "════════════════════════════════════════════════"
+                echo ""
+                echo "API Center:    $(apicServiceName)"
+                echo "API ID:        ${{ parameters.apiId }}"
+                echo "Version:       ${{ parameters.apiVersion }}"
+                echo "Environment:   ${{ parameters.environmentId }}"
+                echo "Server URL:    ${{ parameters.serverUrl }}"
+                echo ""
+                az apic api show \
+                  --subscription   "$(apicSubscription)" \
+                  -g "$(apicResourceGroup)" \
+                  -n "$(apicServiceName)" \
+                  --api-id "${{ parameters.apiId }}" \
+                  --query "{id:name, title:title, kind:kind, contacts:properties.contacts}" \
+                  -o table

@@ -1,0 +1,188 @@
+trigger:
+  branches:
+    include:
+      - feature-1
+
+# Define external repository - use adf_publish branch which has pre-generated ARM templates
+resources:
+  repositories:
+    - repository: addRepo
+      type: git
+      name: devops-demo/ADFGeneric  # Format: ProjectName/RepoName
+      ref: refs/heads/adf_publish    # Use the publish branch with ARM templates
+
+variables:
+  azureSubscription: 'ADF-Fdpo-Connection'
+  resourceGroupName: 'azure-vk-rg'
+  dataFactoryName: 'ADFLob'
+  subscriptionId: '<YOUR-SUBSCRIPTION-ID>'
+  sharedRepoFolder: 'devops-demo/ADFGeneric'
+  # Source factory name (the one that generated the ARM templates)
+  sourceFactoryName: 'adogeneric'
+  armOutputFolder: '$(Pipeline.Workspace)/adf-shared/$(sourceFactoryName)'
+  # Import settings - set to true to copy pipelines from source ADF to target ADF via REST API
+  importToTargetRepo: 'true'
+
+stages:
+  - stage: Deploy_Shared_ADF
+    displayName: Deploy shared ADF pipelines
+    jobs:
+      - job: Deploy
+        displayName: Deploy from adf_publish branch
+        pool:
+          vmImage: 'ubuntu-latest'
+
+        steps:
+          # -----------------------------------------
+          # Checkout target repo (this repo)
+          # -----------------------------------------
+          - checkout: self
+            clean: true
+
+          # -----------------------------------------
+          # Checkout adf_publish branch (contains pre-generated ARM templates)
+          # -----------------------------------------
+          - checkout: addRepo
+            persistCredentials: true
+            path: adf-shared
+            fetchDepth: 1
+
+          # -----------------------------------------
+          # List ARM templates from publish branch
+          # -----------------------------------------
+          - task: Bash@3
+            displayName: 'List ARM Templates'
+            inputs:
+              targetType: 'inline'
+              script: |
+                echo "=== ARM Templates from adf_publish branch ==="
+                cd $(Pipeline.Workspace)/adf-shared
+                
+                echo "=== Root directory ==="
+                ls -la
+                
+                echo ""
+                echo "=== All files ==="
+                find . -type f -not -path './.git/*'
+                
+                echo ""
+                echo "=== Source factory folder: $(sourceFactoryName) ==="
+                if [ -d "$(sourceFactoryName)" ]; then
+                  ls -la "$(sourceFactoryName)"
+                else
+                  echo "Folder $(sourceFactoryName) not found!"
+                  echo "Looking for ARM templates in other locations..."
+                  find . -name "ARMTemplate*.json" -not -path './.git/*'
+                fi
+                
+                echo ""
+                echo "=== ARM Template Content ==="
+                ARM_FOLDER="$(armOutputFolder)"
+                if [ -f "$ARM_FOLDER/ARMTemplateForFactory.json" ]; then
+                  cat "$ARM_FOLDER/ARMTemplateForFactory.json"
+                else
+                  echo "ARMTemplateForFactory.json not found at $ARM_FOLDER"
+                fi
+
+          # -----------------------------------------
+          # Update ARM parameters for target factory
+          # -----------------------------------------
+          - task: Bash@3
+            displayName: 'Update ARM Parameters for Target Factory'
+            inputs:
+              targetType: 'inline'
+              script: |
+                echo "=== Updating ARM parameters for target factory ==="
+                
+                ARM_FOLDER="$(armOutputFolder)"
+                FACTORY_NAME="$(dataFactoryName)"
+                
+                echo "ARM Folder: $ARM_FOLDER"
+                echo "Target Factory: $FACTORY_NAME"
+                
+                cd "$ARM_FOLDER"
+                
+                # Update the parameters file to use target factory name
+                if [ -f "ARMTemplateParametersForFactory.json" ]; then
+                  # Use jq if available, otherwise use sed
+                  if command -v jq &> /dev/null; then
+                    jq --arg fn "$FACTORY_NAME" '.parameters.factoryName.value = $fn' \
+                      ARMTemplateParametersForFactory.json > temp.json && mv temp.json ARMTemplateParametersForFactory.json
+                  else
+                    sed -i "s/\"factoryName\".*:.*{.*\"value\".*:.*\"[^\"]*\"/\"factoryName\": { \"value\": \"$FACTORY_NAME\"/g" \
+                      ARMTemplateParametersForFactory.json
+                  fi
+                  
+                  echo "Updated parameters:"
+                  cat ARMTemplateParametersForFactory.json
+                else
+                  echo "ERROR: ARMTemplateParametersForFactory.json not found!"
+                  exit 1
+                fi
+
+          # -----------------------------------------
+          # Skip IR deployment using ARM condition: false
+          # Instead of deleting IR resources (which breaks
+          # dependsOn chains), we set "condition": false.
+          # ARM skips deploying them but dependsOn references
+          # to conditional=false resources are auto-ignored.
+          # This keeps the template intact and valid.
+          # -----------------------------------------
+          - task: Bash@3
+            displayName: 'Skip Integration Runtime Deployment'
+            inputs:
+              targetType: 'inline'
+              script: |
+                set -e
+                ARM_FOLDER="$(armOutputFolder)"
+                ARM_FILE="$ARM_FOLDER/ARMTemplateForFactory.json"
+
+                if [ ! -f "$ARM_FILE" ]; then
+                  echo "ERROR: $ARM_FILE not found"; exit 1
+                fi
+
+                # Set condition=false on IR resources so ARM skips them
+                IR_COUNT=$(jq '[.resources[] | select(.type == "Microsoft.DataFactory/factories/integrationRuntimes")] | length' "$ARM_FILE")
+                echo "Found $IR_COUNT Integration Runtime resource(s) — setting condition: false"
+
+                jq '(.resources[] | select(.type == "Microsoft.DataFactory/factories/integrationRuntimes")) .condition = false' \
+                  "$ARM_FILE" > "$ARM_FILE.tmp" && mv "$ARM_FILE.tmp" "$ARM_FILE"
+
+                echo "Done. IR resources will be skipped during deployment."
+                echo ""
+                echo "=== Resources in template ==="
+                jq -r '.resources[] | "\(.type | split("/")[-1])  |  condition: \(.condition // "true")"' "$ARM_FILE"
+
+          # -----------------------------------------
+          # Publish ARM artifacts for download
+          # -----------------------------------------
+          - task: PublishBuildArtifacts@1
+            displayName: 'Publish ARM Artifacts'
+            inputs:
+              PathtoPublish: '$(armOutputFolder)'
+              ArtifactName: 'adf-arm-templates'
+              publishLocation: 'Container'
+
+          # -----------------------------------------
+          # Deploy ARM (INCREMENTAL = SAFE)
+          # This deploys resources to the LIVE ADF factory
+          # Resources will appear in ADF Studio under "Live" mode
+          # -----------------------------------------
+          - task: AzureResourceManagerTemplateDeployment@3
+            displayName: Deploy shared pipelines (Incremental)
+            inputs:
+              deploymentScope: Resource Group
+              azureResourceManagerConnection: $(azureSubscription)
+              subscriptionId: $(subscriptionId)
+              action: Create Or Update Resource Group
+              resourceGroupName: $(resourceGroupName)
+              location: 'UAE North'
+              templateLocation: Linked artifact
+              csmFile: $(armOutputFolder)/ARMTemplateForFactory.json
+              csmParametersFile: $(armOutputFolder)/ARMTemplateParametersForFactory.json
+              overrideParameters: -factoryName $(dataFactoryName)
+              deploymentMode: Incremental
+
+          # NOTE: The ARM deployment above already imports resources to the live ADF
+          # If target ADF has Git integration, view resources in "Live" mode in ADF Studio
+          # To save to Git repo, manually save from ADF Studio or use Git operations
