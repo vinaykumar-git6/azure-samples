@@ -1,4 +1,25 @@
 <#
+.DISCLAIMER
+    MICROSOFT DISCLAIMER - PROOF OF CONCEPT (POC)
+
+    THIS SCRIPT IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+    INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+    PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL MICROSOFT CORPORATION
+    BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+    CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THIS
+    SCRIPT OR THE USE OR OTHER DEALINGS IN THIS SCRIPT.
+
+    This script is a Proof of Concept (POC) and is NOT a supported Microsoft product
+    or service. It is provided for demonstration and reference purposes only.
+
+    IMPORTANT:
+    - You MUST test and validate this script in a non-production/test environment
+      before executing it against any production subscription or resources.
+    - The customer assumes full responsibility for reviewing, testing, and validating
+      this script prior to production use.
+    - Microsoft is not responsible for any data loss, service disruption, or other
+      issues that may result from the execution of this script.
+
 .SYNOPSIS
     Start or Stop AKS cluster aks-vk-with-cilium via Azure Automation.
     Uses System Managed Identity for authentication.
