@@ -27,10 +27,12 @@ az automation account create `
     --sku Free
 
 Write-Host "=== Step 2: Enable System Managed Identity ===" -ForegroundColor Cyan
-$identityBody = '{"identity":{"type":"SystemAssigned"}}'
+$identityBodyFile = Join-Path $env:TEMP "aa-identity.json"
+'{"identity":{"type":"SystemAssigned"}}' | Out-File -FilePath $identityBodyFile -Encoding utf8 -NoNewline
 az rest --method PATCH `
     --url "https://management.azure.com/subscriptions/$subscriptionId/resourceGroups/$rgName/providers/Microsoft.Automation/automationAccounts/$automationAccountName`?api-version=2023-11-01" `
-    --body $identityBody
+    --headers "Content-Type=application/json" `
+    --body "@$identityBodyFile"
 
 Write-Host "=== Step 3: Get Managed Identity Principal ID ===" -ForegroundColor Cyan
 $principalId = az rest --method GET `
@@ -52,19 +54,22 @@ az role assignment create `
     --scope "/subscriptions/$subscriptionId/resourceGroups/$aksResourceGroup/providers/Microsoft.ContainerService/managedClusters/$aksClusterName"
 
 Write-Host "=== Step 5: Import Az.Accounts module ===" -ForegroundColor Cyan
-$moduleBody = '{"properties":{"contentLink":{"uri":"https://www.powershellgallery.com/api/v2/package/Az.Accounts"}}}'
+$moduleBodyFile = Join-Path $env:TEMP "aa-module.json"
+'{"properties":{"contentLink":{"uri":"https://www.powershellgallery.com/api/v2/package/Az.Accounts"}}}' | Out-File -FilePath $moduleBodyFile -Encoding utf8 -NoNewline
 az rest --method PUT `
     --url "https://management.azure.com/subscriptions/$subscriptionId/resourceGroups/$rgName/providers/Microsoft.Automation/automationAccounts/$automationAccountName/modules/Az.Accounts`?api-version=2023-11-01" `
-    --body $moduleBody
+    --headers "Content-Type=application/json" `
+    --body "@$moduleBodyFile"
 
 Write-Host "Waiting 90s for Az.Accounts to import..." -ForegroundColor Yellow
 Start-Sleep -Seconds 90
 
 Write-Host "=== Step 6: Import Az.Aks module ===" -ForegroundColor Cyan
-$moduleBody = '{"properties":{"contentLink":{"uri":"https://www.powershellgallery.com/api/v2/package/Az.Aks"}}}'
+'{"properties":{"contentLink":{"uri":"https://www.powershellgallery.com/api/v2/package/Az.Aks"}}}' | Out-File -FilePath $moduleBodyFile -Encoding utf8 -NoNewline
 az rest --method PUT `
     --url "https://management.azure.com/subscriptions/$subscriptionId/resourceGroups/$rgName/providers/Microsoft.Automation/automationAccounts/$automationAccountName/modules/Az.Aks`?api-version=2023-11-01" `
-    --body $moduleBody
+    --headers "Content-Type=application/json" `
+    --body "@$moduleBodyFile"
 
 Write-Host "Waiting 90s for Az.Aks to import..." -ForegroundColor Yellow
 Start-Sleep -Seconds 90
@@ -113,20 +118,26 @@ az automation schedule create `
     --description "Start AKS cluster at 7 AM GST daily"
 
 Write-Host "=== Step 12: Link Stop Schedule to Runbook ===" -ForegroundColor Cyan
-az automation job-schedule create `
-    --automation-account-name $automationAccountName `
-    --resource-group $rgName `
-    --runbook-name $runbookName `
-    --schedule-name "AKS-Stop-9PM-GST" `
-    --parameters Action=Stop
+$stopJobScheduleId = [guid]::NewGuid().ToString()
+$stopLinkBodyFile = Join-Path $env:TEMP "aa-stop-link.json"
+@"
+{"properties":{"schedule":{"name":"AKS-Stop-9PM-GST"},"runbook":{"name":"$runbookName"},"parameters":{"Action":"Stop"}}}
+"@ | Out-File -FilePath $stopLinkBodyFile -Encoding utf8 -NoNewline
+az rest --method PUT `
+    --url "https://management.azure.com/subscriptions/$subscriptionId/resourceGroups/$rgName/providers/Microsoft.Automation/automationAccounts/$automationAccountName/jobSchedules/$stopJobScheduleId`?api-version=2023-11-01" `
+    --headers "Content-Type=application/json" `
+    --body "@$stopLinkBodyFile"
 
 Write-Host "=== Step 13: Link Start Schedule to Runbook ===" -ForegroundColor Cyan
-az automation job-schedule create `
-    --automation-account-name $automationAccountName `
-    --resource-group $rgName `
-    --runbook-name $runbookName `
-    --schedule-name "AKS-Start-7AM-GST" `
-    --parameters Action=Start
+$startJobScheduleId = [guid]::NewGuid().ToString()
+$startLinkBodyFile = Join-Path $env:TEMP "aa-start-link.json"
+@"
+{"properties":{"schedule":{"name":"AKS-Start-7AM-GST"},"runbook":{"name":"$runbookName"},"parameters":{"Action":"Start"}}}
+"@ | Out-File -FilePath $startLinkBodyFile -Encoding utf8 -NoNewline
+az rest --method PUT `
+    --url "https://management.azure.com/subscriptions/$subscriptionId/resourceGroups/$rgName/providers/Microsoft.Automation/automationAccounts/$automationAccountName/jobSchedules/$startJobScheduleId`?api-version=2023-11-01" `
+    --headers "Content-Type=application/json" `
+    --body "@$startLinkBodyFile"
 
 Write-Host ""
 Write-Host "============================================" -ForegroundColor Green
