@@ -7,3 +7,8 @@
  kubectl scale deployment customer-api --replicas=25 -n dpworld ## scale out
 
  kubectl scale deployment customer-api --replicas=2 -n dpworld ## scale in
+
+
+ ##NAP
+
+   --node-provisioning-mode Auto \

@@ -1,0 +1,18 @@
+{
+  "properties": {
+    "serviceMeshProfile": {
+      "mode": "Istio",
+      "istio": {
+        "certificateAuthority": {
+          "plugin": {
+            "keyVaultId": "/subscriptions/7d1e8453-2920-4f6d-9a6e-bc7005c10a22/resourceGroups/azure-vk-rg/providers/Microsoft.KeyVault/vaults/aksciliumkv",
+            "certObjectName": "ca-cert",
+            "keyObjectName": "ca-key",
+            "rootCertObjectName": "root-cert",
+            "certChainObjectName": "cert-chain"
+          }
+        }
+      }
+    }
+  }
+}

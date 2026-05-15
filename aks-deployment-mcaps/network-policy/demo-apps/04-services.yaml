@@ -1,0 +1,42 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-a-svc
+  namespace: netpol-demo
+  labels:
+    app: web-a
+spec:
+  selector:
+    app: web-a
+  ports:
+    - port: 80
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-b-svc
+  namespace: netpol-demo
+  labels:
+    app: web-b
+spec:
+  selector:
+    app: web-b
+  ports:
+    - port: 80
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-c-svc
+  namespace: netpol-demo
+  labels:
+    app: web-c
+spec:
+  selector:
+    app: web-c
+  ports:
+    - port: 80
+      targetPort: 8080

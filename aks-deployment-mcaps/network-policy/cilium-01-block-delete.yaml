@@ -1,19 +1,21 @@
-## Cilium L7 Policy: customer-frontend can only GET (read-only, pod-to-pod)
+## Cilium L7 Policy: Block DELETE on customer-api from customer-frontend (pod-to-pod)
+## customer-frontend proxies all API calls → customer-api (pod-to-pod)
+## customer-frontend: allow GET, POST, PUT, PATCH — block DELETE
 ## VNet (10.0.0.0/16): full access (no L7 filtering)
 ## Requires ACNS: az aks update --name aks-vk-with-cilium --resource-group azure-vk-rg --enable-acns
-## Apply:  kubectl apply -f customer-api-l7-block-frontend.yaml
-## Remove: kubectl delete -f customer-api-l7-block-frontend.yaml
+## Apply:  kubectl apply -f cilium-01-block-delete.yaml
+## Remove: kubectl delete -f cilium-01-block-delete.yaml
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: customer-api-block-frontend
+  name: block-customer-api-delete
   namespace: dpworld
 spec:
   endpointSelector:
     matchLabels:
       app: customer-api
   ingress:
-    # customer-frontend pod-to-pod: read-only
+    # customer-frontend pod-to-pod: allow all EXCEPT DELETE
     - fromEndpoints:
         - matchLabels:
             app: customer-frontend
@@ -24,6 +26,9 @@ spec:
           rules:
             http:
               - method: GET
+              - method: POST
+              - method: PUT
+              - method: PATCH
               - method: HEAD
               - method: OPTIONS
     # VNet traffic (AppGW, nodes, APIM): full access

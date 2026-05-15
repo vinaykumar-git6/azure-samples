@@ -1,0 +1,172 @@
+<mxfile host="app.diagrams.net" agent="draw.io">
+  <diagram id="workload-identity-sequence" name="Workload Identity - Customer API to PostgreSQL">
+    <mxGraphModel dx="3379" dy="991" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=16;" value="&lt;b&gt;Workload Identity: Customer API → Azure PostgreSQL Authentication Flow&lt;/b&gt;" vertex="1">
+          <mxGeometry height="40" width="600" x="300" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="actor1" parent="1" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=0;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#dae8fc;strokeColor=#6c8ebf;size=60;fontSize=11;" value="&lt;b&gt;Customer API Pod&lt;/b&gt;&lt;br&gt;(Flask App)" vertex="1">
+          <mxGeometry height="1050" width="140" x="80" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="actor2" parent="1" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=0;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#e1d5e7;strokeColor=#9673a6;size=60;fontSize=11;" value="&lt;b&gt;AKS Workload&lt;br&gt;Identity Webhook&lt;/b&gt;" vertex="1">
+          <mxGeometry height="1050" width="140" x="310" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="actor3" parent="1" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=0;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#fff2cc;strokeColor=#d6b656;size=60;fontSize=11;" value="&lt;b&gt;Azure Identity SDK&lt;/b&gt;&lt;br&gt;(ManagedIdentityCredential)" vertex="1">
+          <mxGeometry height="1050" width="160" x="540" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="actor4" parent="1" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=0;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#d5e8d4;strokeColor=#82b366;size=60;fontSize=11;" value="&lt;b&gt;Microsoft Entra ID&lt;/b&gt;&lt;br&gt;(Azure AD)" vertex="1">
+          <mxGeometry height="1050" width="140" x="790" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="actor5" parent="1" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=0;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#f8cecc;strokeColor=#b85450;size=60;fontSize=11;" value="&lt;b&gt;Federated Identity&lt;br&gt;Credential&lt;/b&gt;&lt;br&gt;(Trust Policy)" vertex="1">
+          <mxGeometry height="1050" width="140" x="1020" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="actor6" parent="1" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=0;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#f5f5f5;strokeColor=#666666;size=60;fontSize=11;" value="&lt;b&gt;Azure PostgreSQL&lt;/b&gt;&lt;br&gt;Flexible Server" vertex="1">
+          <mxGeometry height="1050" width="140" x="1260" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="phase1" parent="1" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=#E6E6E6;fontSize=11;fontColor=#333333;rounded=1;" value="&lt;b&gt;Phase 1: Pod Startup &amp; Token Injection&lt;/b&gt;" vertex="1">
+          <mxGeometry height="30" width="260" x="-130" y="170" as="geometry" />
+        </mxCell>
+        <mxCell id="msg1" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontSize=10;exitX=1;exitY=0;exitDx=0;exitDy=0;" value="1. Pod created with ServiceAccount&lt;br&gt;(customer-api-sa, label: azure.workload.identity/use=true)">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="150" y="200" as="sourcePoint" />
+            <mxPoint x="380" y="200" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="msg2" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontSize=10;dashed=1;" value="2. Mutating webhook intercepts pod creation">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="420" y="240" />
+              <mxPoint x="420" y="260" />
+            </Array>
+            <mxPoint x="380" y="240" as="sourcePoint" />
+            <mxPoint x="380" y="260" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="msg3" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontSize=10;exitX=0;exitY=0;exitDx=0;exitDy=0;" value="3. Inject projected SA token volume &amp; env vars&lt;br&gt;(AZURE_CLIENT_ID, AZURE_TENANT_ID,&lt;br&gt;AZURE_FEDERATED_TOKEN_FILE)">
+          <mxGeometry relative="1" x="-0.2" as="geometry">
+            <mxPoint as="offset" />
+            <mxPoint x="380" y="290" as="sourcePoint" />
+            <mxPoint x="150" y="290" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="msg4_note" parent="1" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;size=15;fillColor=#FFF9E6;strokeColor=#d6b656;fontSize=9;align=left;" value="AKS OIDC Issuer signs the projected&lt;br&gt;service account token (JWT)&lt;br&gt;Subject: system:serviceaccount:app:customer-api-sa" vertex="1">
+          <mxGeometry height="60" width="260" x="20" y="310" as="geometry" />
+        </mxCell>
+        <mxCell id="phase2" parent="1" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=#E6E6E6;fontSize=11;fontColor=#333333;rounded=1;" value="&lt;b&gt;Phase 2: Azure AD Token Exchange (OAuth2 Federated Flow)&lt;/b&gt;" vertex="1">
+          <mxGeometry height="30" width="380" x="-250" y="390" as="geometry" />
+        </mxCell>
+        <mxCell id="msg5" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontSize=10;" value="4. ManagedIdentityCredential(client_id)&lt;br&gt;get_token(&#39;https://ossrdbms-aad.database.windows.net/.default&#39;)">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="150" y="430" as="sourcePoint" />
+            <mxPoint x="620" y="430" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="msg6" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontSize=10;dashed=1;" value="5. Read projected SA token from&lt;br&gt;AZURE_FEDERATED_TOKEN_FILE">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="660" y="470" />
+              <mxPoint x="660" y="490" />
+            </Array>
+            <mxPoint x="620" y="470" as="sourcePoint" />
+            <mxPoint x="620" y="490" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="msg7" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontSize=9;" value="6. POST /oauth2/v2.0/token&lt;br&gt;grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&lt;br&gt;client_assertion=&amp;lt;projected-SA-token&amp;gt;&lt;br&gt;scope=https://ossrdbms-aad.database.windows.net/.default">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="620" y="530" as="sourcePoint" />
+            <mxPoint x="860" y="530" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="msg8" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontSize=10;" value="7. Validate token issuer &amp; subject&lt;br&gt;against federated credential trust">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="860" y="590" as="sourcePoint" />
+            <mxPoint x="1090" y="590" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fic_note" parent="1" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;size=15;fillColor=#FFF9E6;strokeColor=#d6b656;fontSize=9;align=left;" value="Checks:&lt;br&gt;✓ Issuer = AKS OIDC Issuer URL&lt;br&gt;✓ Subject = system:serviceaccount:app:customer-api-sa&lt;br&gt;✓ Audience = api://AzureADTokenExchange" vertex="1">
+          <mxGeometry height="65" width="270" x="1170" y="570" as="geometry" />
+        </mxCell>
+        <mxCell id="msg9" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=open;curved=0;rounded=0;fontSize=10;dashed=1;" value="8. ✓ Trust validated&lt;br&gt;(issuer, subject, audience match)">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1090" y="660" as="sourcePoint" />
+            <mxPoint x="860" y="660" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="msg10" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=open;curved=0;rounded=0;fontSize=10;dashed=1;" value="9. Issue access token for&lt;br&gt;ossrdbms-aad.database.windows.net&lt;br&gt;(scoped to customer-api-identity)">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="860" y="720" as="sourcePoint" />
+            <mxPoint x="620" y="720" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="msg11" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=open;curved=0;rounded=0;fontSize=10;dashed=1;" value="10. Return Azure AD access token">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="620" y="770" as="sourcePoint" />
+            <mxPoint x="150" y="770" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="phase3" parent="1" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=#E6E6E6;fontSize=11;fontColor=#333333;rounded=1;" value="&lt;b&gt;Phase 3: PostgreSQL Authentication &amp; Authorization&lt;/b&gt;" vertex="1">
+          <mxGeometry height="30" width="340" x="20" y="800" as="geometry" />
+        </mxCell>
+        <mxCell id="msg12" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontSize=9;" value="11. psycopg2.connect(&lt;br&gt;  host=devpostgresvinay.postgres.database.azure.com,&lt;br&gt;  user=customer-api-identity,&lt;br&gt;  password=&amp;lt;Azure-AD-access-token&amp;gt;,&lt;br&gt;  sslmode=require)">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="150" y="850" as="sourcePoint" />
+            <mxPoint x="1330" y="850" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="msg13" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontSize=10;" value="12. Validate Azure AD token&lt;br&gt;(pgaadauth extension)">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1330" y="910" as="sourcePoint" />
+            <mxPoint x="860" y="910" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="msg14" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=open;curved=0;rounded=0;fontSize=10;dashed=1;" value="13. ✓ Token valid, identity confirmed">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="860" y="955" as="sourcePoint" />
+            <mxPoint x="1330" y="955" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="pg_auth_note" parent="1" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;size=15;fillColor=#FFF9E6;strokeColor=#d6b656;fontSize=9;align=left;" value="Authorization check:&lt;br&gt;✓ pgaadauth_create_principal registered identity&lt;br&gt;✓ GRANT privileges on database/schema/tables&lt;br&gt;✓ customer-api-identity has CRUD access" vertex="1">
+          <mxGeometry height="60" width="260" x="1170" y="965" as="geometry" />
+        </mxCell>
+        <mxCell id="msg15" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=open;curved=0;rounded=0;fontSize=10;dashed=1;strokeColor=#009900;" value="14. ✓ Connection established&lt;br&gt;(Authenticated &amp; Authorized)">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1330" y="1000" as="sourcePoint" />
+            <mxPoint x="150" y="1000" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="msg16" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontSize=10;strokeColor=#009900;" value="15. Execute SQL queries&lt;br&gt;(SELECT, INSERT, UPDATE, DELETE on customers)">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="150" y="1050" as="sourcePoint" />
+            <mxPoint x="1330" y="1050" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="msg17" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=open;curved=0;rounded=0;fontSize=10;dashed=1;strokeColor=#009900;" value="16. Return query results">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1330" y="1085" as="sourcePoint" />
+            <mxPoint x="150" y="1085" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="legend_box" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#CCCCCC;dashed=1;" value="" vertex="1">
+          <mxGeometry height="80" width="440" x="20" y="1110" as="geometry" />
+        </mxCell>
+        <mxCell id="legend_title" parent="1" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=10;" value="&lt;b&gt;Key Components&lt;/b&gt;" vertex="1">
+          <mxGeometry height="25" width="110" x="30" y="1112" as="geometry" />
+        </mxCell>
+        <mxCell id="legend1" parent="1" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=9;" value="Managed Identity: customer-api-identity (Client ID: f9325343-...)" vertex="1">
+          <mxGeometry height="20" width="340" x="30" y="1133" as="geometry" />
+        </mxCell>
+        <mxCell id="legend2" parent="1" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=9;" value="Service Account: customer-api-sa (namespace: app)" vertex="1">
+          <mxGeometry height="20" width="280" x="30" y="1150" as="geometry" />
+        </mxCell>
+        <mxCell id="legend3" parent="1" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=9;" value="PostgreSQL: devpostgresvinay.postgres.database.azure.com" vertex="1">
+          <mxGeometry height="20" width="300" x="30" y="1167" as="geometry" />
+        </mxCell>
+        <mxCell id="no_secret_note" parent="1" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;size=15;fillColor=#D4EDDA;strokeColor=#82b366;fontSize=10;align=center;fontStyle=1;" value="🔒 No passwords or secrets stored!&lt;br&gt;Authentication uses short-lived Azure AD tokens&lt;br&gt;exchanged via OIDC federation." vertex="1">
+          <mxGeometry height="65" width="280" x="490" y="1110" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

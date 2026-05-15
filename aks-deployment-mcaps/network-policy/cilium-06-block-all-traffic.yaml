@@ -1,0 +1,32 @@
+## Cilium L7 Policy: Block ALL traffic from customer-frontend to customer-api
+## customer-frontend: denied (ingressDeny takes precedence)
+## Everyone else (world): full access
+## Requires ACNS: az aks update --name aks-vk-with-cilium --resource-group azure-vk-rg --enable-acns
+## Apply:  kubectl apply -f cilium-06-block-all-traffic.yaml
+## Remove: kubectl delete -f cilium-06-block-all-traffic.yaml
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: block-customer-api-all-traffic
+  namespace: dpworld
+spec:
+  endpointSelector:
+    matchLabels:
+      app: customer-api
+  ingress:
+    # Allow from everywhere (AppGW, APIM, internet, other pods, etc.)
+    - fromEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "5000"
+              protocol: TCP
+  ingressDeny:
+    # Deny from customer-frontend (takes precedence over allow)
+    - fromEndpoints:
+        - matchLabels:
+            app: customer-frontend
+      toPorts:
+        - ports:
+            - port: "5000"
+              protocol: TCP

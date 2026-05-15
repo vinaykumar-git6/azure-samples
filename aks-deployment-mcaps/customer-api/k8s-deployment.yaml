@@ -229,8 +229,6 @@ metadata:
     appgw.ingress.kubernetes.io/health-probe-path: /health
     appgw.ingress.kubernetes.io/health-probe-port: "5000"
     appgw.ingress.kubernetes.io/health-probe-interval: "30"
-    # Use private frontend IP (10.0.17.10)
-    appgw.ingress.kubernetes.io/use-private-ip: "true"
     # Backend settings
     appgw.ingress.kubernetes.io/backend-protocol: http
     appgw.ingress.kubernetes.io/request-timeout: "30"

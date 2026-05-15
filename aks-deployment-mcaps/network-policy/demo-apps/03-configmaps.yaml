@@ -1,0 +1,167 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: web-server-script
+  namespace: netpol-demo
+data:
+  server.py: |
+    import http.server
+    import json
+    import os
+    import urllib.request
+    import urllib.error
+    from urllib.parse import urlparse, parse_qs
+
+    APP_NAME = os.environ.get("APP_NAME", "unknown")
+    APP_ROLE = os.environ.get("APP_ROLE", "unknown")
+    APP_COLOR = os.environ.get("APP_COLOR", "#333")
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            parsed = urlparse(self.path)
+            if parsed.path == "/api/call":
+                self.handle_api_call(parsed)
+            elif parsed.path == "/health":
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain")
+                self.end_headers()
+                self.wfile.write(b"OK")
+            else:
+                self.serve_html()
+
+        def handle_api_call(self, parsed):
+            params = parse_qs(parsed.query)
+            target = params.get("target", [""])[0]
+            if not target:
+                self.send_json(400, {"error": "missing target param"})
+                return
+            allowed = ["web-a-svc","web-b-svc","web-c-svc"]
+            host = target.split("://")[-1].split("/")[0].split(":")[0]
+            if host not in allowed:
+                self.send_json(403, {"error": "target not allowed"})
+                return
+            url = target if target.startswith("http") else f"http://{target}"
+            try:
+                req = urllib.request.Request(url, method="GET")
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    body = resp.read().decode("utf-8", errors="replace")
+                    self.send_json(200, {"status": resp.status, "source": APP_NAME,
+                        "target": target, "success": True, "body": body[:2000]})
+            except urllib.error.URLError as e:
+                self.send_json(200, {"status": 0, "source": APP_NAME, "target": target,
+                    "success": False, "error": str(e.reason) if hasattr(e,'reason') else str(e)})
+            except Exception as e:
+                self.send_json(200, {"status": 0, "source": APP_NAME, "target": target,
+                    "success": False, "error": str(e)})
+
+        def send_json(self, code, data):
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps(data, indent=2).encode())
+
+        def serve_html(self):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            html = HTML_TEMPLATE.replace("{{APP_NAME}}", APP_NAME)
+            html = html.replace("{{APP_ROLE}}", APP_ROLE)
+            html = html.replace("{{APP_COLOR}}", APP_COLOR)
+            self.wfile.write(html.encode())
+
+        def log_message(self, fmt, *args):
+            pass
+
+    HTML_TEMPLATE = r"""<!DOCTYPE html>
+    <html>
+    <head>
+      <title>{{APP_NAME}} - {{APP_ROLE}}</title>
+      <style>
+        *{box-sizing:border-box;margin:0;padding:0}
+        body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#333}
+        .header{background:{{APP_COLOR}};color:#fff;padding:30px;text-align:center}
+        .header h1{font-size:2em;margin-bottom:5px}
+        .header .meta{opacity:.85;font-size:.95em}
+        .container{max-width:900px;margin:20px auto;padding:0 20px}
+        .card{background:#fff;border-radius:8px;padding:20px;margin-bottom:15px;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+        .card h2{margin-bottom:15px;color:#444;font-size:1.2em}
+        .btn-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:15px}
+        .btn{padding:10px 20px;border:none;border-radius:6px;cursor:pointer;font-size:.95em;font-weight:600;color:#fff;transition:opacity .2s}
+        .btn:hover{opacity:.85}
+        .btn-a{background:#1a73e8}
+        .btn-b{background:#0f9d58}
+        .btn-c{background:#db4437}
+        .result-box{background:#f8f9fa;border:1px solid #e0e0e0;border-radius:6px;padding:15px;min-height:60px;font-family:Consolas,monospace;font-size:.85em;white-space:pre-wrap;word-break:break-word;margin-bottom:10px}
+        .badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:.8em;font-weight:600;margin-left:8px}
+        .ok{background:#e6f4ea;color:#1e7e34}
+        .fail{background:#fce8e6;color:#c5221f}
+        .wait{background:#fef7e0;color:#e37400}
+        .info{display:flex;gap:20px;flex-wrap:wrap}
+        .info-item{flex:1;min-width:200px}
+        .info-item label{font-weight:600;color:#666;font-size:.85em}
+        .info-item span{display:block;margin-top:4px;font-size:1.05em}
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>{{APP_ROLE}}</h1>
+        <div class="meta">Pod: {{APP_NAME}} | Namespace: netpol-demo</div>
+      </div>
+      <div class="container">
+        <div class="card">
+          <h2>Pod Info</h2>
+          <div class="info">
+            <div class="info-item"><label>Pod Name</label><span>{{APP_NAME}}</span></div>
+            <div class="info-item"><label>Role</label><span>{{APP_ROLE}}</span></div>
+            <div class="info-item"><label>Namespace</label><span>netpol-demo</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Network Connectivity Test</h2>
+          <p style="color:#666;margin-bottom:15px">Click to test if this pod can reach other services. NetworkPolicy controls which succeed or fail.</p>
+          <div class="btn-row">
+            <button class="btn btn-a" id="btn-web-a" onclick="callSvc('web-a-svc')">Call Web-A (Order)</button>
+            <button class="btn btn-b" id="btn-web-b" onclick="callSvc('web-b-svc')">Call Web-B (Payment)</button>
+            <button class="btn btn-c" id="btn-web-c" onclick="callSvc('web-c-svc')">Call Web-C (Inventory)</button>
+          </div>
+          <div id="results"></div>
+        </div>
+        <div class="card">
+          <h2>NetworkPolicy Demo Guide</h2>
+          <p style="color:#666;line-height:1.6">
+            <b>Step 1:</b> No policies &#8594; All buttons return <span class="badge ok">SUCCESS</span><br>
+            <b>Step 2:</b> Apply deny-all &#8594; All buttons return <span class="badge fail">BLOCKED</span><br>
+            <b>Step 3:</b> Apply selective allow &#8594; Only permitted paths return <span class="badge ok">SUCCESS</span>
+          </p>
+        </div>
+      </div>
+      <script>
+      var self='btn-{{APP_NAME}}';var e=document.getElementById(self);if(e)e.style.display='none';
+      function callSvc(t){
+        var d=document.getElementById('results'),id='r-'+t,b=document.getElementById(id);
+        if(!b){b=document.createElement('div');b.id=id;d.appendChild(b)}
+        b.innerHTML='<div class="result-box"><span class="badge wait">CALLING...</span> {{APP_NAME}} &#8594; '+t+'</div>';
+        var c=new AbortController();var tm=setTimeout(function(){c.abort()},8000);
+        var base=window.location.pathname.replace(/\/$/,'');
+        fetch(base+'/api/call?target='+encodeURIComponent(t),{signal:c.signal})
+        .then(function(r){return r.json()})
+        .then(function(j){
+          clearTimeout(tm);
+          var bg=j.success?'<span class="badge ok">SUCCESS '+j.status+'</span>':'<span class="badge fail">BLOCKED</span>';
+          var dt=j.success?'Response from '+t+':\n'+ext(j.body):'Error: '+(j.error||'timeout');
+          b.innerHTML='<div class="result-box">'+bg+' {{APP_NAME}} &#8594; '+t+'\n\n'+dt+'</div>';
+        }).catch(function(e){
+          clearTimeout(tm);
+          b.innerHTML='<div class="result-box"><span class="badge fail">BLOCKED</span> {{APP_NAME}} &#8594; '+t+'\n\nError: '+e.message+'</div>';
+        });
+      }
+      function ext(h){var m=h.match(/<h1>(.*?)<\/h1>/);return m?'Service: '+m[1]:h.substring(0,200)}
+      </script>
+    </body>
+    </html>"""
+
+    if __name__ == "__main__":
+        s = http.server.HTTPServer(("0.0.0.0", 8080), Handler)
+        print(f"Starting {APP_NAME} on port 8080")
+        s.serve_forever()

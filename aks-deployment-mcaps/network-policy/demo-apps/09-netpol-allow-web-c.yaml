@@ -1,0 +1,27 @@
+# Allow ingress to web-c (Inventory Service) from AppGW and all pods in namespace
+# This is the most permissive policy - anyone in cluster + AppGW can access
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-web-c
+  namespace: netpol-demo
+spec:
+  podSelector:
+    matchLabels:
+      app: web-c
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow from Application Gateway subnet
+    - from:
+        - ipBlock:
+            cidr: 10.0.17.0/24
+      ports:
+        - protocol: TCP
+          port: 8080
+    # Allow from any pod in same namespace
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 8080

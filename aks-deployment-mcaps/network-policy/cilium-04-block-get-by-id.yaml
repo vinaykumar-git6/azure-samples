@@ -1,19 +1,20 @@
-## Cilium L7 Policy: customer-frontend can only GET (read-only, pod-to-pod)
+## Cilium L7 Policy: Block GET-by-ID from customer-frontend (pod-to-pod)
+## customer-frontend: allow list, create, update, delete — block GET /api/customers/{id}
 ## VNet (10.0.0.0/16): full access (no L7 filtering)
 ## Requires ACNS: az aks update --name aks-vk-with-cilium --resource-group azure-vk-rg --enable-acns
-## Apply:  kubectl apply -f customer-api-l7-block-frontend.yaml
-## Remove: kubectl delete -f customer-api-l7-block-frontend.yaml
+## Apply:  kubectl apply -f cilium-04-block-get-by-id.yaml
+## Remove: kubectl delete -f cilium-04-block-get-by-id.yaml
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: customer-api-block-frontend
+  name: block-customer-api-get-by-id
   namespace: dpworld
 spec:
   endpointSelector:
     matchLabels:
       app: customer-api
   ingress:
-    # customer-frontend pod-to-pod: read-only
+    # customer-frontend pod-to-pod: allow all EXCEPT GET /api/customers/{id}
     - fromEndpoints:
         - matchLabels:
             app: customer-frontend
@@ -24,6 +25,15 @@ spec:
           rules:
             http:
               - method: GET
+                path: "/health"
+              - method: GET
+                path: "/api/customers$"
+              - method: GET
+                path: "/api/customers\\?.*"
+              - method: POST
+              - method: PUT
+              - method: DELETE
+              - method: PATCH
               - method: HEAD
               - method: OPTIONS
     # VNet traffic (AppGW, nodes, APIM): full access

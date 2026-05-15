@@ -1,0 +1,66 @@
+---
+# Ingress for Web-A (Order Service) - /orders path
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: web-a-ingress
+  namespace: netpol-demo
+  annotations:
+    appgw.ingress.kubernetes.io/backend-path-prefix: "/"
+    appgw.ingress.kubernetes.io/health-probe-path: "/health"
+spec:
+  ingressClassName: azure-application-gateway
+  rules:
+    - http:
+        paths:
+          - path: /orders
+            pathType: Prefix
+            backend:
+              service:
+                name: web-a-svc
+                port:
+                  number: 80
+---
+# Ingress for Web-B (Payment Service) - /payments path
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: web-b-ingress
+  namespace: netpol-demo
+  annotations:
+    appgw.ingress.kubernetes.io/backend-path-prefix: "/"
+    appgw.ingress.kubernetes.io/health-probe-path: "/health"
+spec:
+  ingressClassName: azure-application-gateway
+  rules:
+    - http:
+        paths:
+          - path: /payments
+            pathType: Prefix
+            backend:
+              service:
+                name: web-b-svc
+                port:
+                  number: 80
+---
+# Ingress for Web-C (Inventory Service) - /inventory path
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: web-c-ingress
+  namespace: netpol-demo
+  annotations:
+    appgw.ingress.kubernetes.io/backend-path-prefix: "/"
+    appgw.ingress.kubernetes.io/health-probe-path: "/health"
+spec:
+  ingressClassName: azure-application-gateway
+  rules:
+    - http:
+        paths:
+          - path: /inventory
+            pathType: Prefix
+            backend:
+              service:
+                name: web-c-svc
+                port:
+                  number: 80

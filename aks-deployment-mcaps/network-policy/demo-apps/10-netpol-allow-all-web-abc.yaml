@@ -1,0 +1,20 @@
+# Allow ALL ingress traffic to web-a, web-b, and web-c
+# Use this to open up all traffic for demo/testing purposes
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-all-web-abc
+  namespace: netpol-demo
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values:
+          - web-a
+          - web-b
+          - web-c
+  policyTypes:
+    - Ingress
+  ingress:
+    - {}

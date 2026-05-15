@@ -1,0 +1,11 @@
+{
+  "properties": {
+    "loggerType": "azureEventHub",
+    "description": "Event Hub logger with system-assigned managed identity",
+    "credentials": {
+      "endpointAddress": "myapilogger-hub.servicebus.windows.net",
+      "identityClientId": "SystemAssigned",
+      "name": "apim-logs"
+    }
+  }
+}

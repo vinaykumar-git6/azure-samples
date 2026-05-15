@@ -1,0 +1,32 @@
+# Allow ingress to web-a (Order Service) from:
+#   1. Application Gateway subnet (so AppGW ingress works)
+#   2. Pods with role=client (test-client pod)
+# After applying: AppGW -> web-a works, test-client -> web-a works
+#                 web-b -> web-a BLOCKED, web-c -> web-a BLOCKED
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-web-a
+  namespace: netpol-demo
+spec:
+  podSelector:
+    matchLabels:
+      app: web-a
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow from Application Gateway subnet (10.0.17.0/24)
+    - from:
+        - ipBlock:
+            cidr: 10.0.17.0/24
+      ports:
+        - protocol: TCP
+          port: 8080
+    # Allow from test-client pods
+    - from:
+        - podSelector:
+            matchLabels:
+              role: client
+      ports:
+        - protocol: TCP
+          port: 8080

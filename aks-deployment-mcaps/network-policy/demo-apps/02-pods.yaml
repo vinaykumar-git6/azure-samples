@@ -1,0 +1,136 @@
+---
+# Web-A: "Order Service" - Blue themed
+apiVersion: v1
+kind: Pod
+metadata:
+  name: web-a
+  namespace: netpol-demo
+  labels:
+    app: web-a
+    role: order-service
+spec:
+  containers:
+    - name: web
+      image: python:3.12-alpine
+      command: ["python", "/app/server.py"]
+      ports:
+        - containerPort: 8080
+      env:
+        - name: APP_NAME
+          value: "web-a"
+        - name: APP_ROLE
+          value: "Order Service"
+        - name: APP_COLOR
+          value: "#1a73e8"
+      volumeMounts:
+        - name: script
+          mountPath: /app
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
+  volumes:
+    - name: script
+      configMap:
+        name: web-server-script
+---
+# Web-B: "Payment Service" - Green themed
+apiVersion: v1
+kind: Pod
+metadata:
+  name: web-b
+  namespace: netpol-demo
+  labels:
+    app: web-b
+    role: payment-service
+spec:
+  containers:
+    - name: web
+      image: python:3.12-alpine
+      command: ["python", "/app/server.py"]
+      ports:
+        - containerPort: 8080
+      env:
+        - name: APP_NAME
+          value: "web-b"
+        - name: APP_ROLE
+          value: "Payment Service"
+        - name: APP_COLOR
+          value: "#0f9d58"
+      volumeMounts:
+        - name: script
+          mountPath: /app
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
+  volumes:
+    - name: script
+      configMap:
+        name: web-server-script
+---
+# Web-C: "Inventory Service" - Red themed
+apiVersion: v1
+kind: Pod
+metadata:
+  name: web-c
+  namespace: netpol-demo
+  labels:
+    app: web-c
+    role: inventory-service
+spec:
+  containers:
+    - name: web
+      image: python:3.12-alpine
+      command: ["python", "/app/server.py"]
+      ports:
+        - containerPort: 8080
+      env:
+        - name: APP_NAME
+          value: "web-c"
+        - name: APP_ROLE
+          value: "Inventory Service"
+        - name: APP_COLOR
+          value: "#db4437"
+      volumeMounts:
+        - name: script
+          mountPath: /app
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
+  volumes:
+    - name: script
+      configMap:
+        name: web-server-script
+---
+# Test client pod - for testing inter-pod connectivity
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-client
+  namespace: netpol-demo
+  labels:
+    app: test-client
+    role: client
+spec:
+  containers:
+    - name: curl
+      image: curlimages/curl:latest
+      command: ["sleep", "3600"]
+      resources:
+        requests:
+          cpu: 50m
+          memory: 32Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi

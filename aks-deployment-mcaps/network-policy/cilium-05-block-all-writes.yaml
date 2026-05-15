@@ -1,19 +1,20 @@
-## Cilium L7 Policy: customer-frontend can only GET (read-only, pod-to-pod)
+## Cilium L7 Policy: Read-only mode from customer-frontend (pod-to-pod)
+## customer-frontend: ONLY GET + HEAD + OPTIONS — all writes (POST/PUT/DELETE) blocked
 ## VNet (10.0.0.0/16): full access (no L7 filtering)
 ## Requires ACNS: az aks update --name aks-vk-with-cilium --resource-group azure-vk-rg --enable-acns
-## Apply:  kubectl apply -f customer-api-l7-block-frontend.yaml
-## Remove: kubectl delete -f customer-api-l7-block-frontend.yaml
+## Apply:  kubectl apply -f cilium-05-block-all-writes.yaml
+## Remove: kubectl delete -f cilium-05-block-all-writes.yaml
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: customer-api-block-frontend
+  name: block-customer-api-all-writes
   namespace: dpworld
 spec:
   endpointSelector:
     matchLabels:
       app: customer-api
   ingress:
-    # customer-frontend pod-to-pod: read-only
+    # customer-frontend pod-to-pod: read-only — only GET allowed
     - fromEndpoints:
         - matchLabels:
             app: customer-frontend

@@ -8,51 +8,83 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Inter', sans-serif; background: #f0f2f5; color: #1a1a2e; min-height: 100vh; }
-
     .header {
       background: linear-gradient(135deg, #0a1628 0%, #1a365d 50%, #2563eb 100%);
-      color: white; padding: 20px 32px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+      color: white; padding: 20px 32px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);
     }
-    .header-content { max-width: 1000px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+    .header-content { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
     .header h1 { font-size: 22px; font-weight: 700; }
     .header p { font-size: 13px; opacity: 0.7; margin-top: 2px; }
     .status { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 6px 14px; background: rgba(255,255,255,0.1); border-radius: 20px; }
     .dot { width: 8px; height: 8px; border-radius: 50%; }
     .dot.ok { background: #22c55e; box-shadow: 0 0 8px rgba(34,197,94,0.6); }
     .dot.err { background: #ef4444; }
-
-    .main { max-width: 1000px; margin: 32px auto; padding: 0 24px; }
-
-    .card {
-      background: white; border-radius: 16px; overflow: hidden;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04);
-      border: 1px solid #e5e7eb; margin-bottom: 20px;
-    }
-    .card-header { padding: 18px 24px; border-bottom: 1px solid #f3f4f6; font-size: 16px; font-weight: 700; color: #111827; display: flex; align-items: center; gap: 10px; }
+    .main { max-width: 1100px; margin: 24px auto; padding: 0 24px; }
+    .card { background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04); border: 1px solid #e5e7eb; margin-bottom: 20px; }
+    .card-header { padding: 16px 24px; border-bottom: 1px solid #f3f4f6; font-size: 16px; font-weight: 700; color: #111827; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
     .card-header span { font-size: 12px; color: #6b7280; font-weight: 400; }
-
+    .card-body { padding: 20px 24px; }
+    /* Toolbar */
+    .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .toolbar input, .toolbar select { padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; font-family: inherit; outline: none; }
+    .toolbar input:focus, .toolbar select:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+    .toolbar input[type=text] { width: 200px; }
+    .toolbar input[type=number] { width: 80px; }
+    /* Buttons */
+    .btn { padding: 8px 16px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px; }
+    .btn:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-primary { background: #2563eb; color: white; }
+    .btn-success { background: #16a34a; color: white; }
+    .btn-danger { background: #dc2626; color: white; }
+    .btn-outline { background: white; color: #374151; border: 1px solid #d1d5db; }
+    .btn-outline:hover { background: #f9fafb; }
+    .btn-sm { padding: 5px 10px; font-size: 12px; }
+    .btn-icon { padding: 6px 8px; }
+    /* Table */
     table { width: 100%; border-collapse: collapse; }
-    thead th { padding: 12px 20px; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; background: #f9fafb; border-bottom: 2px solid #e5e7eb; }
-    tbody td { padding: 14px 20px; font-size: 14px; border-bottom: 1px solid #f3f4f6; }
+    thead th { padding: 12px 16px; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; background: #f9fafb; border-bottom: 2px solid #e5e7eb; }
+    tbody td { padding: 12px 16px; font-size: 14px; border-bottom: 1px solid #f3f4f6; }
     tbody tr:last-child td { border-bottom: none; }
     tbody tr:hover { background: #f8faff; }
     .name { font-weight: 600; color: #111827; }
-    .email { color: #6b7280; font-size: 13px; }
+    .email { color: #6b7280; font-size: 12px; }
     .badge { display: inline-block; padding: 3px 10px; border-radius: 6px; font-size: 12px; font-weight: 500; background: #eff6ff; color: #2563eb; }
-
-    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 20px 24px; }
+    .badge-green { background: #f0fdf4; color: #16a34a; }
+    /* Modal */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; align-items: center; justify-content: center; }
+    .modal-overlay.active { display: flex; }
+    .modal { background: white; border-radius: 16px; width: 520px; max-width: 95vw; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+    .modal-header { padding: 20px 24px; border-bottom: 1px solid #e5e7eb; font-size: 18px; font-weight: 700; display: flex; align-items: center; justify-content: space-between; }
+    .modal-header .close { background: none; border: none; font-size: 22px; cursor: pointer; color: #9ca3af; padding: 4px; }
+    .modal-header .close:hover { color: #111; }
+    .modal-body { padding: 20px 24px; }
+    .modal-footer { padding: 16px 24px; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end; gap: 10px; }
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.3px; }
+    .form-group input, .form-group textarea { width: 100%; padding: 9px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; font-family: inherit; outline: none; }
+    .form-group input:focus, .form-group textarea:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    /* Detail View */
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     .detail-item label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #9ca3af; font-weight: 600; }
     .detail-item p { font-size: 14px; font-weight: 500; color: #111827; margin-top: 3px; }
-    .avatar { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; color: white; background: linear-gradient(135deg, #2563eb, #7c3aed); }
-    .cust-header { display: flex; align-items: center; gap: 14px; padding: 20px 24px; border-bottom: 1px solid #f3f4f6; }
+    .avatar { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; color: white; background: linear-gradient(135deg, #2563eb, #7c3aed); flex-shrink: 0; }
+    .cust-header { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
     .cust-header h3 { font-size: 16px; font-weight: 700; }
     .cust-header p { font-size: 13px; color: #6b7280; }
-
+    /* Pagination */
+    .pagination { display: flex; align-items: center; justify-content: space-between; padding: 14px 24px; border-top: 1px solid #f3f4f6; font-size: 13px; color: #6b7280; }
+    .pagination .page-btns { display: flex; gap: 6px; }
+    /* Toast */
+    .toast { position: fixed; top: 20px; right: 20px; padding: 12px 20px; border-radius: 10px; color: white; font-size: 14px; font-weight: 500; z-index: 200; box-shadow: 0 4px 12px rgba(0,0,0,0.15); animation: slideIn 0.3s ease; }
+    .toast.success { background: #16a34a; }
+    .toast.error { background: #dc2626; }
+    @keyframes slideIn { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
     .loading { text-align: center; padding: 60px; color: #6b7280; }
     .spinner { width: 36px; height: 36px; border: 3px solid #e5e7eb; border-top-color: #2563eb; border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block; margin-bottom: 12px; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .error-box { text-align: center; padding: 40px; color: #dc2626; }
+    .empty-state { text-align: center; padding: 40px; color: #9ca3af; }
+    .actions { display: flex; gap: 4px; }
   </style>
 </head>
 <body>
@@ -60,7 +92,7 @@
     <div class="header-content">
       <div>
         <h1>&#128100; Customer Portal</h1>
-        <p>DP World — Top 5 Customers</p>
+        <p>DP World &mdash; Customer Management</p>
       </div>
       <div class="status" id="health-status">
         <span class="dot" id="health-dot"></span>
@@ -69,88 +101,345 @@
     </div>
   </header>
 
-  <div class="main" id="app">
-    <div class="loading"><div class="spinner"></div><p>Loading customers...</p></div>
+  <div class="main">
+    <!-- Search & Filter Toolbar -->
+    <div class="card">
+      <div class="card-body">
+        <div class="toolbar">
+          <input type="number" id="search-id" placeholder="Customer ID" min="1" />
+          <button class="btn btn-primary btn-sm" onclick="searchById()">&#128269; Search by ID</button>
+          <span style="color:#d1d5db">|</span>
+          <input type="text" id="filter-city" placeholder="Filter by city" />
+          <input type="text" id="filter-country" placeholder="Filter by country" />
+          <button class="btn btn-outline btn-sm" onclick="applyFilters()">Filter</button>
+          <button class="btn btn-outline btn-sm" onclick="clearFilters()">Clear</button>
+          <span style="flex:1"></span>
+          <button class="btn btn-success" onclick="openCreateModal()">&#43; New Customer</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Customer Table -->
+    <div class="card">
+      <div class="card-header">
+        <div>Customer List <span id="count-info"></span></div>
+      </div>
+      <div id="table-container">
+        <div class="loading"><div class="spinner"></div><p>Loading customers...</p></div>
+      </div>
+      <div class="pagination" id="pagination" style="display:none">
+        <span id="page-info"></span>
+        <div class="page-btns">
+          <button class="btn btn-outline btn-sm" id="prev-btn" onclick="changePage(-1)">&#8592; Prev</button>
+          <button class="btn btn-outline btn-sm" id="next-btn" onclick="changePage(1)">Next &#8594;</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Customer Detail (shown after search) -->
+    <div class="card" id="detail-card" style="display:none">
+      <div class="card-header"><div>Customer Detail</div><button class="btn btn-outline btn-sm" onclick="closeDetail()">&#10005; Close</button></div>
+      <div class="card-body" id="detail-body"></div>
+    </div>
+  </div>
+
+  <!-- Create/Edit Modal -->
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <span id="modal-title">New Customer</span>
+        <button class="close" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-id" />
+        <div class="form-row">
+          <div class="form-group"><label>First Name *</label><input type="text" id="f-first_name" /></div>
+          <div class="form-group"><label>Last Name *</label><input type="text" id="f-last_name" /></div>
+        </div>
+        <div class="form-group"><label>Email *</label><input type="email" id="f-email" /></div>
+        <div class="form-group"><label>Phone</label><input type="text" id="f-phone" /></div>
+        <div class="form-group"><label>Address</label><input type="text" id="f-address" /></div>
+        <div class="form-row">
+          <div class="form-group"><label>City</label><input type="text" id="f-city" /></div>
+          <div class="form-group"><label>Country</label><input type="text" id="f-country" /></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" id="modal-save-btn" onclick="saveCustomer()">Create Customer</button>
+      </div>
+    </div>
   </div>
 
   <script>
-    const API_BASE = '/api';
+    const API = '/api';
+    let currentPage = 1;
+    let currentCity = '';
+    let currentCountry = '';
 
+    // --- Toast ---
+    function toast(msg, type) {
+      var t = document.createElement('div');
+      t.className = 'toast ' + type;
+      t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(function() { t.remove(); }, 3000);
+    }
+
+    // --- Escape HTML ---
+    function esc(s) {
+      if (s == null) return '&mdash;';
+      var d = document.createElement('div');
+      d.textContent = String(s);
+      return d.innerHTML;
+    }
+
+    // --- Health Check ---
     async function checkHealth() {
       try {
-        const res = await fetch('/health');
-        const data = await res.json();
+        var res = await fetch('/health');
+        var data = await res.json();
         document.getElementById('health-dot').className = 'dot ' + (data.status === 'healthy' ? 'ok' : 'err');
         document.getElementById('health-text').textContent = data.status === 'healthy' ? 'API Online' : 'API Offline';
-      } catch {
+      } catch(e) {
         document.getElementById('health-dot').className = 'dot err';
         document.getElementById('health-text').textContent = 'API Offline';
       }
     }
 
+    // --- Load Customers ---
     async function loadCustomers() {
-      const app = document.getElementById('app');
+      var container = document.getElementById('table-container');
+      container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading...</p></div>';
       try {
-        const res = await fetch(API_BASE + '/customers?page=1&limit=5');
+        var url = API + '/customers?page=' + currentPage + '&limit=10';
+        if (currentCity) url += '&city=' + encodeURIComponent(currentCity);
+        if (currentCountry) url += '&country=' + encodeURIComponent(currentCountry);
+        var res = await fetch(url);
         if (!res.ok) throw new Error('API returned ' + res.status);
-        const data = await res.json();
-        const customers = data.customers || [];
+        var data = await res.json();
+        var customers = data.customers || [];
+        var pag = data.pagination || {};
 
         if (customers.length === 0) {
-          app.innerHTML = '<div class="error-box"><p>No customers found.</p></div>';
+          container.innerHTML = '<div class="empty-state"><p>No customers found.</p></div>';
+          document.getElementById('pagination').style.display = 'none';
+          document.getElementById('count-info').textContent = '';
           return;
         }
 
-        // Summary table
-        let html = '<div class="card">';
-        html += '<div class="card-header">Customer List <span>Showing top 5 of ' + (data.pagination?.total_items || customers.length) + '</span></div>';
-        html += '<table><thead><tr><th>ID</th><th>Customer</th><th>Phone</th><th>City</th><th>Country</th></tr></thead><tbody>';
+        var html = '<table><thead><tr><th>ID</th><th>Customer</th><th>Phone</th><th>City</th><th>Country</th><th>Actions</th></tr></thead><tbody>';
         customers.forEach(function(c) {
           html += '<tr>';
           html += '<td><span class="badge">#' + c.id + '</span></td>';
           html += '<td><div class="name">' + esc(c.first_name) + ' ' + esc(c.last_name) + '</div><div class="email">' + esc(c.email) + '</div></td>';
-          html += '<td>' + esc(c.phone || '—') + '</td>';
-          html += '<td>' + esc(c.city || '—') + '</td>';
-          html += '<td>' + esc(c.country || '—') + '</td>';
+          html += '<td>' + esc(c.phone) + '</td>';
+          html += '<td>' + esc(c.city) + '</td>';
+          html += '<td><span class="badge-green">' + esc(c.country) + '</span></td>';
+          html += '<td><div class="actions">';
+          html += '<button class="btn btn-outline btn-sm btn-icon" title="View" onclick="viewCustomer(' + c.id + ')">&#128065;</button>';
+          html += '<button class="btn btn-outline btn-sm btn-icon" title="Edit" onclick="openEditModal(' + c.id + ')">&#9998;</button>';
+          html += '<button class="btn btn-danger btn-sm btn-icon" title="Delete" onclick="deleteCustomer(' + c.id + ')">&#128465;</button>';
+          html += '</div></td>';
           html += '</tr>';
         });
-        html += '</tbody></table></div>';
+        html += '</tbody></table>';
+        container.innerHTML = html;
 
-        // Detail cards for each customer
-        customers.forEach(function(c) {
-          var initials = (c.first_name?.[0] || '') + (c.last_name?.[0] || '');
-          var created = c.created_at ? new Date(c.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
-          var updated = c.updated_at ? new Date(c.updated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
-
-          html += '<div class="card">';
-          html += '<div class="cust-header">';
-          html += '<div class="avatar">' + esc(initials) + '</div>';
-          html += '<div><h3>' + esc(c.first_name) + ' ' + esc(c.last_name) + '</h3><p>' + esc(c.email) + '</p></div>';
-          html += '</div>';
-          html += '<div class="detail-grid">';
-          html += '<div class="detail-item"><label>Customer ID</label><p>#' + c.id + '</p></div>';
-          html += '<div class="detail-item"><label>Phone</label><p>' + esc(c.phone || '—') + '</p></div>';
-          html += '<div class="detail-item"><label>Address</label><p>' + esc(c.address || '—') + '</p></div>';
-          html += '<div class="detail-item"><label>City</label><p>' + esc(c.city || '—') + '</p></div>';
-          html += '<div class="detail-item"><label>Country</label><p>' + esc(c.country || '—') + '</p></div>';
-          html += '<div class="detail-item"><label>Created</label><p>' + created + '</p></div>';
-          html += '</div></div>';
-        });
-
-        app.innerHTML = html;
-      } catch (err) {
-        app.innerHTML = '<div class="error-box"><p>Failed to load customers: ' + esc(err.message) + '</p></div>';
+        // Pagination
+        document.getElementById('count-info').textContent = 'Showing ' + customers.length + ' of ' + (pag.total_items || customers.length);
+        var pagDiv = document.getElementById('pagination');
+        pagDiv.style.display = 'flex';
+        document.getElementById('page-info').textContent = 'Page ' + (pag.page || 1) + ' of ' + (pag.total_pages || 1);
+        document.getElementById('prev-btn').disabled = !pag.has_prev;
+        document.getElementById('next-btn').disabled = !pag.has_next;
+      } catch(err) {
+        container.innerHTML = '<div class="empty-state" style="color:#dc2626"><p>Failed to load: ' + esc(err.message) + '</p></div>';
       }
     }
 
-    function esc(s) {
-      var d = document.createElement('div');
-      d.textContent = s;
-      return d.innerHTML;
+    function changePage(delta) {
+      currentPage += delta;
+      if (currentPage < 1) currentPage = 1;
+      loadCustomers();
     }
 
+    // --- Search by ID ---
+    async function searchById() {
+      var id = document.getElementById('search-id').value.trim();
+      if (!id) { toast('Enter a customer ID', 'error'); return; }
+      try {
+        var res = await fetch(API + '/customers/' + encodeURIComponent(id));
+        if (res.status === 404) { toast('Customer #' + id + ' not found', 'error'); return; }
+        if (!res.ok) throw new Error('API returned ' + res.status);
+        var c = await res.json();
+        showDetail(c);
+        toast('Found customer #' + c.id, 'success');
+      } catch(err) {
+        toast('Error: ' + err.message, 'error');
+      }
+    }
+
+    // --- View Customer ---
+    async function viewCustomer(id) {
+      try {
+        var res = await fetch(API + '/customers/' + id);
+        if (!res.ok) throw new Error('API returned ' + res.status);
+        var c = await res.json();
+        showDetail(c);
+      } catch(err) {
+        toast('Error: ' + err.message, 'error');
+      }
+    }
+
+    function showDetail(c) {
+      var initials = ((c.first_name || '?')[0] + (c.last_name || '?')[0]).toUpperCase();
+      var created = c.created_at ? new Date(c.created_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) : '&mdash;';
+      var updated = c.updated_at ? new Date(c.updated_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) : '&mdash;';
+      var html = '<div class="cust-header"><div class="avatar">' + esc(initials) + '</div><div><h3>' + esc(c.first_name) + ' ' + esc(c.last_name) + '</h3><p>' + esc(c.email) + '</p></div></div>';
+      html += '<div class="detail-grid">';
+      html += '<div class="detail-item"><label>Customer ID</label><p>#' + c.id + '</p></div>';
+      html += '<div class="detail-item"><label>Phone</label><p>' + esc(c.phone) + '</p></div>';
+      html += '<div class="detail-item"><label>Address</label><p>' + esc(c.address) + '</p></div>';
+      html += '<div class="detail-item"><label>City</label><p>' + esc(c.city) + '</p></div>';
+      html += '<div class="detail-item"><label>Country</label><p>' + esc(c.country) + '</p></div>';
+      html += '<div class="detail-item"><label>Created</label><p>' + created + '</p></div>';
+      html += '</div>';
+      html += '<div style="margin-top:16px;display:flex;gap:8px">';
+      html += '<button class="btn btn-primary btn-sm" onclick="openEditModal(' + c.id + ')">&#9998; Edit</button>';
+      html += '<button class="btn btn-danger btn-sm" onclick="deleteCustomer(' + c.id + ')">&#128465; Delete</button>';
+      html += '</div>';
+      document.getElementById('detail-body').innerHTML = html;
+      document.getElementById('detail-card').style.display = 'block';
+      document.getElementById('detail-card').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function closeDetail() {
+      document.getElementById('detail-card').style.display = 'none';
+    }
+
+    // --- Filter ---
+    function applyFilters() {
+      currentCity = document.getElementById('filter-city').value.trim();
+      currentCountry = document.getElementById('filter-country').value.trim();
+      currentPage = 1;
+      loadCustomers();
+    }
+    function clearFilters() {
+      document.getElementById('filter-city').value = '';
+      document.getElementById('filter-country').value = '';
+      document.getElementById('search-id').value = '';
+      currentCity = '';
+      currentCountry = '';
+      currentPage = 1;
+      closeDetail();
+      loadCustomers();
+    }
+
+    // --- Create / Edit Modal ---
+    function openCreateModal() {
+      document.getElementById('modal-title').textContent = 'New Customer';
+      document.getElementById('modal-save-btn').textContent = 'Create Customer';
+      document.getElementById('edit-id').value = '';
+      ['first_name','last_name','email','phone','address','city','country'].forEach(function(f) {
+        document.getElementById('f-' + f).value = '';
+      });
+      document.getElementById('f-email').disabled = false;
+      document.getElementById('modal-overlay').classList.add('active');
+    }
+
+    async function openEditModal(id) {
+      try {
+        var res = await fetch(API + '/customers/' + id);
+        if (!res.ok) throw new Error('Failed to fetch customer');
+        var c = await res.json();
+        document.getElementById('modal-title').textContent = 'Edit Customer #' + c.id;
+        document.getElementById('modal-save-btn').textContent = 'Save Changes';
+        document.getElementById('edit-id').value = c.id;
+        document.getElementById('f-first_name').value = c.first_name || '';
+        document.getElementById('f-last_name').value = c.last_name || '';
+        document.getElementById('f-email').value = c.email || '';
+        document.getElementById('f-email').disabled = true;
+        document.getElementById('f-phone').value = c.phone || '';
+        document.getElementById('f-address').value = c.address || '';
+        document.getElementById('f-city').value = c.city || '';
+        document.getElementById('f-country').value = c.country || '';
+        document.getElementById('modal-overlay').classList.add('active');
+      } catch(err) {
+        toast('Error: ' + err.message, 'error');
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('modal-overlay').classList.remove('active');
+    }
+
+    async function saveCustomer() {
+      var editId = document.getElementById('edit-id').value;
+      var body = {
+        first_name: document.getElementById('f-first_name').value.trim(),
+        last_name: document.getElementById('f-last_name').value.trim(),
+        email: document.getElementById('f-email').value.trim(),
+        phone: document.getElementById('f-phone').value.trim(),
+        address: document.getElementById('f-address').value.trim(),
+        city: document.getElementById('f-city').value.trim(),
+        country: document.getElementById('f-country').value.trim()
+      };
+      if (!body.first_name || !body.last_name || !body.email) {
+        toast('First name, last name, and email are required', 'error');
+        return;
+      }
+      try {
+        var url, method;
+        if (editId) {
+          url = API + '/customers/' + editId;
+          method = 'PUT';
+        } else {
+          url = API + '/customers';
+          method = 'POST';
+        }
+        var res = await fetch(url, { method: method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        var data = await res.json();
+        if (!res.ok) { toast(data.error || 'Failed to save', 'error'); return; }
+        toast(editId ? 'Customer updated!' : 'Customer created!', 'success');
+        closeModal();
+        loadCustomers();
+        if (editId) { closeDetail(); viewCustomer(editId); }
+      } catch(err) {
+        toast('Error: ' + err.message, 'error');
+      }
+    }
+
+    // --- Delete ---
+    async function deleteCustomer(id) {
+      if (!confirm('Delete customer #' + id + '? This cannot be undone.')) return;
+      try {
+        var res = await fetch(API + '/customers/' + id, { method: 'DELETE' });
+        var data = await res.json();
+        if (!res.ok) { toast(data.error || 'Failed to delete', 'error'); return; }
+        toast('Customer #' + id + ' deleted', 'success');
+        closeDetail();
+        loadCustomers();
+      } catch(err) {
+        toast('Error: ' + err.message, 'error');
+      }
+    }
+
+    // --- Keyboard shortcut ---
+    document.getElementById('search-id').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') searchById();
+    });
+    document.getElementById('filter-city').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') applyFilters();
+    });
+    document.getElementById('filter-country').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') applyFilters();
+    });
+
+    // --- Init ---
     checkHealth();
     loadCustomers();
+    setInterval(checkHealth, 30000);
   </script>
 </body>
 </html>

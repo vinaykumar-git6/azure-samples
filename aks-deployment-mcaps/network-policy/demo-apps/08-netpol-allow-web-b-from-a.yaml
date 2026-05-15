@@ -1,0 +1,23 @@
+# Allow ingress to web-b (Payment Service) ONLY from web-a (Order Service)
+# Simulates: only Order Service can call Payment Service
+# After applying: web-a -> web-b works, test-client -> web-b BLOCKED,
+#                 web-c -> web-b BLOCKED, AppGW -> web-b BLOCKED
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-web-b-from-web-a
+  namespace: netpol-demo
+spec:
+  podSelector:
+    matchLabels:
+      app: web-b
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: web-a
+      ports:
+        - protocol: TCP
+          port: 8080

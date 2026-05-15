@@ -6,6 +6,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app.py .
+COPY public/ public/
 
 RUN useradd -r -u 1000 appuser
 USER appuser

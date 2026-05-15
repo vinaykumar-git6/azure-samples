@@ -62,8 +62,6 @@ metadata:
   name: customer-frontend-ingress
   namespace: dpworld
   annotations:
-    appgw.ingress.kubernetes.io/use-private-ip: "true"
-    appgw.ingress.kubernetes.io/backend-path-prefix: "/"
     appgw.ingress.kubernetes.io/health-probe-path: "/health"
 spec:
   ingressClassName: azure-application-gateway
@@ -72,6 +70,20 @@ spec:
         paths:
           - path: /portal
             pathType: Prefix
+            backend:
+              service:
+                name: customer-frontend-svc
+                port:
+                  number: 80
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: customer-frontend-svc
+                port:
+                  number: 80
+          - path: /health
+            pathType: Exact
             backend:
               service:
                 name: customer-frontend-svc
