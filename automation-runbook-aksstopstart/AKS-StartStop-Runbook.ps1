@@ -21,18 +21,35 @@
       issues that may result from the execution of this script.
 
 .SYNOPSIS
-    Start or Stop AKS cluster aks-vk-with-cilium via Azure Automation.
+    Start or Stop an AKS cluster via Azure Automation.
     Uses System Managed Identity for authentication.
+
+.PARAMETER Action
+    Start or Stop the AKS cluster.
+
+.PARAMETER ClusterName
+    Name of the AKS cluster.
+
+.PARAMETER ResourceGroupName
+    Resource group containing the AKS cluster.
+
+.PARAMETER SubscriptionId
+    Azure subscription ID.
 #>
 param(
     [Parameter(Mandatory = $true)]
     [ValidateSet("Start", "Stop")]
-    [string]$Action
-)
+    [string]$Action,
 
-$ClusterName = "aks-vk-with-cilium"
-$ResourceGroupName = "azure-vk-rg"
-$SubscriptionId = "00000000-0000-0000-0000-000000000000"
+    [Parameter(Mandatory = $true)]
+    [string]$ClusterName,
+
+    [Parameter(Mandatory = $true)]
+    [string]$ResourceGroupName,
+
+    [Parameter(Mandatory = $true)]
+    [string]$SubscriptionId
+)
 
 # Authenticate using Managed Identity
 try {

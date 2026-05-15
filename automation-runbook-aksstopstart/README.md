@@ -8,10 +8,10 @@ This solution deploys an Azure Automation Account with a PowerShell runbook that
 
 | Component | Value |
 |-----------|-------|
-| Automation Account | `aa-aks-scheduler` |
-| Runbook | `AKS-StartStop-Cilium` |
-| Stop Schedule | 9 PM GST (17:00 UTC) daily |
-| Start Schedule | 7 AM GST (03:00 UTC) daily |
+| Automation Account | Configurable (default: `aa-aks-scheduler`) |
+| Runbook | `AKS-StartStop-<ClusterName>` |
+| Stop Schedule | Configurable (default: 17:00 UTC) |
+| Start Schedule | Configurable (default: 03:00 UTC) |
 | Authentication | System Managed Identity (Contributor on AKS) |
 
 ## Files
@@ -31,9 +31,12 @@ This is the PowerShell script that runs inside Azure Automation on schedule.
 
 **Parameters:**
 
-| Parameter | Type | Values | Description |
-|-----------|------|--------|-------------|
-| `Action` | String | `Start` / `Stop` | Determines whether to start or stop the cluster |
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `Action` | String | Yes | `Start` or `Stop` — determines the operation |
+| `ClusterName` | String | Yes | Name of the AKS cluster |
+| `ResourceGroupName` | String | Yes | Resource group containing the AKS cluster |
+| `SubscriptionId` | String | Yes | Azure subscription ID |
 
 **Execution Flow:**
 
@@ -71,14 +74,41 @@ This is the PowerShell script that runs inside Azure Automation on schedule.
 
 ```powershell
 cd automation-runbook-aksstopstart
-.\Deploy-AKS-Automation.ps1
+
+# Required parameters
+.\Deploy-AKS-Automation.ps1 `
+    -ResourceGroupName "my-rg" `
+    -SubscriptionId "00000000-0000-0000-0000-000000000000" `
+    -AksClusterName "my-aks-cluster"
+
+# With optional parameters
+.\Deploy-AKS-Automation.ps1 `
+    -ResourceGroupName "my-rg" `
+    -SubscriptionId "00000000-0000-0000-0000-000000000000" `
+    -AksClusterName "my-aks-cluster" `
+    -AutomationAccountName "my-automation-account" `
+    -Location "westeurope" `
+    -StopTimeUTC "20:00" `
+    -StartTimeUTC "06:00"
 ```
+
+**Deployment Parameters:**
+
+| Parameter | Required | Default | Description |
+|-----------|----------|---------|-------------|
+| `ResourceGroupName` | Yes | — | Resource group for Automation Account and AKS |
+| `SubscriptionId` | Yes | — | Azure subscription ID |
+| `AksClusterName` | Yes | — | Name of the AKS cluster to schedule |
+| `AutomationAccountName` | No | `aa-aks-scheduler` | Name of the Automation Account |
+| `Location` | No | `eastus` | Azure region for the Automation Account |
+| `StopTimeUTC` | No | `17:00` | UTC time (HH:mm) for daily stop |
+| `StartTimeUTC` | No | `03:00` | UTC time (HH:mm) for daily start |
 
 ### What the Deployment Script Does (13 Steps)
 
 #### Step 1: Create Automation Account
 ```powershell
-az automation account create --name aa-aks-scheduler --resource-group azure-vk-rg --location eastus --sku Free
+az automation account create --name <AutomationAccountName> --resource-group <ResourceGroupName> --location <Location> --sku Free
 ```
 Creates the Azure Automation Account with Free tier SKU.
 
@@ -118,47 +148,47 @@ Imports the Az.Aks module (provides `Start-AzAksCluster` and `Stop-AzAksCluster`
 
 #### Step 7: Create Runbook
 ```powershell
-az automation runbook create --name AKS-StartStop-Cilium --type PowerShell
+az automation runbook create --name AKS-StartStop-<ClusterName> --type PowerShell
 ```
 Creates an empty PowerShell runbook in the automation account.
 
 #### Step 8: Upload Runbook Content
 ```powershell
-az automation runbook replace-content --name AKS-StartStop-Cilium --content @AKS-StartStop-Runbook.ps1
+az automation runbook replace-content --name AKS-StartStop-<ClusterName> --content @AKS-StartStop-Runbook.ps1
 ```
 Uploads the runbook script code from the local file.
 
 #### Step 9: Publish Runbook
 ```powershell
-az automation runbook publish --name AKS-StartStop-Cilium
+az automation runbook publish --name AKS-StartStop-<ClusterName>
 ```
 Publishes the runbook so it can be scheduled and executed.
 
 #### Step 10: Create Stop Schedule
 ```powershell
-az automation schedule create --name "AKS-Stop-9PM-GST" --frequency Day --interval 1 --start-time "2026-05-16T17:00:00Z"
+az automation schedule create --name "AKS-Stop-Schedule" --frequency Day --interval 1 --start-time "<tomorrow>T<StopTimeUTC>:00Z"
 ```
-Creates a daily schedule that triggers at 17:00 UTC (9 PM GST).
+Creates a daily schedule at the configured stop time.
 
 #### Step 11: Create Start Schedule
 ```powershell
-az automation schedule create --name "AKS-Start-7AM-GST" --frequency Day --interval 1 --start-time "2026-05-16T03:00:00Z"
+az automation schedule create --name "AKS-Start-Schedule" --frequency Day --interval 1 --start-time "<tomorrow>T<StartTimeUTC>:00Z"
 ```
-Creates a daily schedule that triggers at 03:00 UTC (7 AM GST).
+Creates a daily schedule at the configured start time.
 
 #### Step 12: Link Stop Schedule to Runbook
 ```
 PUT /automationAccounts/{name}/jobSchedules/{guid}?api-version=2023-11-01
-Body: {"properties":{"schedule":{"name":"AKS-Stop-9PM-GST"},"runbook":{"name":"AKS-StartStop-Cilium"},"parameters":{"Action":"Stop"}}}
+Body: {"properties":{"schedule":{"name":"AKS-Stop-Schedule"},"runbook":{"name":"..."},"parameters":{"Action":"Stop","ClusterName":"...","ResourceGroupName":"...","SubscriptionId":"..."}}}
 ```
-Links the stop schedule to the runbook with parameter `Action=Stop`.
+Links the stop schedule to the runbook with all required parameters.
 
 #### Step 13: Link Start Schedule to Runbook
 ```
 PUT /automationAccounts/{name}/jobSchedules/{guid}?api-version=2023-11-01
-Body: {"properties":{"schedule":{"name":"AKS-Start-7AM-GST"},"runbook":{"name":"AKS-StartStop-Cilium"},"parameters":{"Action":"Start"}}}
+Body: {"properties":{"schedule":{"name":"AKS-Start-Schedule"},"runbook":{"name":"..."},"parameters":{"Action":"Start","ClusterName":"...","ResourceGroupName":"...","SubscriptionId":"..."}}}
 ```
-Links the start schedule to the runbook with parameter `Action=Start`.
+Links the start schedule to the runbook with all required parameters.
 
 ---
 
@@ -167,18 +197,18 @@ Links the start schedule to the runbook with parameter `Action=Start`.
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    Azure Automation Account                   │
-│                      (aa-aks-scheduler)                       │
+│                    (AutomationAccountName)                    │
 │                                                              │
 │  ┌──────────────────────┐    ┌────────────────────────────┐ │
 │  │  Schedule             │    │  Runbook                    │ │
-│  │  AKS-Stop-9PM-GST    │───▶│  AKS-StartStop-Cilium      │ │
-│  │  (17:00 UTC daily)   │    │                             │ │
-│  └──────────────────────┘    │  param: Action = Stop/Start │ │
-│  ┌──────────────────────┐    │                             │ │
-│  │  Schedule             │───▶│  1. Connect-AzAccount       │ │
-│  │  AKS-Start-7AM-GST   │    │  2. Stop/Start-AzAksCluster│ │
-│  │  (03:00 UTC daily)   │    └────────────────────────────┘ │
-│  └──────────────────────┘                                    │
+│  │  AKS-Stop-Schedule    │───▶│  AKS-StartStop-<Cluster>   │ │
+│  │  (StopTimeUTC daily)  │    │                             │ │
+│  └──────────────────────┘    │  params:                    │ │
+│  ┌──────────────────────┐    │    Action = Stop/Start      │ │
+│  │  Schedule             │───▶│    ClusterName              │ │
+│  │  AKS-Start-Schedule   │    │    ResourceGroupName        │ │
+│  │  (StartTimeUTC daily) │    │    SubscriptionId           │ │
+│  └──────────────────────┘    └────────────────────────────┘ │
 │                                                              │
 │  ┌──────────────────────┐                                    │
 │  │  Managed Identity     │──── Contributor ────┐             │
@@ -188,8 +218,8 @@ Links the start schedule to the runbook with parameter `Action=Start`.
                                                  │
                                     ┌────────────▼────────────┐
                                     │   AKS Cluster            │
-                                    │   aks-vk-with-cilium     │
-                                    │   (azure-vk-rg)          │
+                                    │   (AksClusterName)       │
+                                    │   (ResourceGroupName)    │
                                     └──────────────────────────┘
 ```
 
@@ -197,27 +227,27 @@ Links the start schedule to the runbook with parameter `Action=Start`.
 
 ## Customization
 
-To use this for a different cluster, update these variables:
+All variables are externalized as script parameters — no need to edit the scripts.
 
-**In `Deploy-AKS-Automation.ps1`:**
+**Example — different cluster with custom schedule:**
 ```powershell
-$rgName = "your-resource-group"
-$automationAccountName = "your-automation-account"
-$location = "your-region"
-$aksClusterName = "your-aks-cluster"
-$subscriptionId = "your-subscription-id"
+.\Deploy-AKS-Automation.ps1 `
+    -ResourceGroupName "prod-rg" `
+    -SubscriptionId "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" `
+    -AksClusterName "prod-aks-cluster" `
+    -AutomationAccountName "aa-prod-scheduler" `
+    -Location "westeurope" `
+    -StopTimeUTC "22:00" `
+    -StartTimeUTC "05:00"
 ```
 
-**In `AKS-StartStop-Runbook.ps1`:**
-```powershell
-$ClusterName = "your-aks-cluster"
-$ResourceGroupName = "your-resource-group"
-$SubscriptionId = "your-subscription-id"
-```
-
-**To change the schedule times**, modify the `--start-time` values in Steps 10/11:
-- Convert your desired time to UTC
-- GST = UTC+4, so 9 PM GST = 17:00 UTC, 7 AM GST = 03:00 UTC
+**Common UTC conversions:**
+| Local Time | UTC Offset | Stop (10 PM local) | Start (7 AM local) |
+|------------|------------|--------------------|-----------------------|
+| GST (UAE)  | UTC+4      | 18:00              | 03:00                 |
+| IST (India)| UTC+5:30   | 16:30              | 01:30                 |
+| CET (EU)   | UTC+1      | 21:00              | 06:00                 |
+| EST (US)   | UTC-5      | 03:00 (+1d)        | 12:00                 |
 
 ---
 
@@ -234,7 +264,7 @@ $SubscriptionId = "your-subscription-id"
 ## Monitoring
 
 View job history in the Azure Portal:
-1. Navigate to **Automation Account** → `aa-aks-scheduler`
+1. Navigate to **Automation Account** → your Automation Account name
 2. Click **Jobs** to see execution history
 3. Click a job to view **Output** and **Errors** streams
 
