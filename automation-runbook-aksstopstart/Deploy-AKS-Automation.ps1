@@ -36,7 +36,7 @@ $automationAccountName = "aa-aks-scheduler"
 $location = "eastus"
 $aksClusterName = "aks-vk-with-cilium"
 $aksResourceGroup = "azure-vk-rg"
-$subscriptionId = "7d1e8453-2920-4f6d-9a6e-bc7005c10a22"
+$subscriptionId = "00000000-0000-0000-0000-000000000000"
 $runbookName = "AKS-StartStop-Cilium"
 $runbookFile = "$PSScriptRoot\AKS-StartStop-Runbook.ps1"
 

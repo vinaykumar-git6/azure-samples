@@ -32,7 +32,7 @@ param(
 
 $ClusterName = "aks-vk-with-cilium"
 $ResourceGroupName = "azure-vk-rg"
-$SubscriptionId = "7d1e8453-2920-4f6d-9a6e-bc7005c10a22"
+$SubscriptionId = "00000000-0000-0000-0000-000000000000"
 
 # Authenticate using Managed Identity
 try {
