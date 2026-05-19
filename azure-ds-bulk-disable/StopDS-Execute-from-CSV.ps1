@@ -355,14 +355,21 @@ try {
         $diagSettings = Get-DiagSettings -ResourceId $resourceId
 
         if (-not $diagSettings -or $diagSettings.Count -eq 0) {
-            Write-Log "[$processedCount/$totalResources] No diagnostic settings found on: $resourceName" -Level WARN
-            continue
+            # For storage accounts, still check child resources even if parent has no diag settings
+            if ($resourceType -ne "Microsoft.Storage/storageAccounts") {
+                Write-Log "[$processedCount/$totalResources] No diagnostic settings found on: $resourceName" -Level WARN
+                continue
+            } else {
+                Write-Log "[$processedCount/$totalResources] No diagnostic settings on parent storage account: $resourceName. Checking child services..." -Level WARN
+                $targetDiagSettings = @()
+            }
         }
 
         # Filter by target workspace if specified
         if ($targetLower) {
             $targetDiagSettings = @()
             foreach ($ds in $diagSettings) {
+                if (-not ($ds.PSObject.Properties.Name -contains 'workspaceId')) { continue }
                 $wsId = $ds.workspaceId
                 if ($wsId -and ($wsId.ToLower() -eq $targetLower -or $wsId.ToLower().Contains($targetLower))) {
                     $targetDiagSettings += $ds
@@ -373,115 +380,191 @@ try {
         }
 
         if ($targetDiagSettings.Count -eq 0) {
-            Write-Log "[$processedCount/$totalResources] No matching diagnostic settings on: $resourceName" -Level WARN
-            continue
+            # For storage accounts, skip parent but still check child resources below
+            if ($resourceType -ne "Microsoft.Storage/storageAccounts") {
+                Write-Log "[$processedCount/$totalResources] No matching diagnostic settings on: $resourceName" -Level WARN
+                continue
+            } else {
+                Write-Log "[$processedCount/$totalResources] No matching diagnostic settings on parent: $resourceName. Checking child services..."
+            }
         }
 
         $totalDiagSettingsFound += $targetDiagSettings.Count
         Write-Log "[$processedCount/$totalResources] Found $($targetDiagSettings.Count) diagnostic setting(s) to remove on: $resourceName"
 
-        # Backup diagnostic settings
-        foreach ($ds in $targetDiagSettings) {
-            $allDiagSettingsBackup += [PSCustomObject]@{
-                SubscriptionId   = $subId
-                SubscriptionName = $subName
-                ResourceId       = $resourceId
-                ResourceName     = $resourceName
-                ResourceType     = $resourceType
-                ResourceGroup    = $resourceGroup
-                DiagSettingName  = $ds.name
-                WorkspaceId      = $ds.workspaceId
-                FullSettingJson   = ($ds | ConvertTo-Json -Depth 10 -Compress)
-            }
-        }
-
-        # Check for locks
-        $locks = Get-ResourceLocks -ResourceId $resourceId
-        $hasLocks = ($locks -and $locks.Count -gt 0)
-
-        if ($hasLocks) {
-            Write-Log "[$processedCount/$totalResources] Resource has $($locks.Count) lock(s): $($locks | ForEach-Object { "$($_.name)($($_.level))" } | Join-String -Separator ', ')"
-            $totalLocksHandled += $locks.Count
-
-            foreach ($lock in $locks) {
-                $allLocksBackup += [PSCustomObject]@{
+        if ($targetDiagSettings.Count -gt 0) {
+            # Backup diagnostic settings
+            foreach ($ds in $targetDiagSettings) {
+                $allDiagSettingsBackup += [PSCustomObject]@{
                     SubscriptionId   = $subId
                     SubscriptionName = $subName
                     ResourceId       = $resourceId
                     ResourceName     = $resourceName
-                    LockId           = $lock.id
-                    LockName         = $lock.name
-                    LockLevel        = $lock.level
-                    LockNotes        = $lock.notes
+                    ResourceType     = $resourceType
+                    ResourceGroup    = $resourceGroup
+                    DiagSettingName  = $ds.name
+                    WorkspaceId      = $ds.workspaceId
+                    FullSettingJson   = ($ds | ConvertTo-Json -Depth 10 -Compress)
+                }
+            }
+
+            # Check for locks
+            $locks = Get-ResourceLocks -ResourceId $resourceId
+            $hasLocks = ($locks -and $locks.Count -gt 0)
+
+            if ($hasLocks) {
+                Write-Log "[$processedCount/$totalResources] Resource has $($locks.Count) lock(s): $($locks | ForEach-Object { "$($_.name)($($_.level))" } | Join-String -Separator ', ')"
+                $totalLocksHandled += $locks.Count
+
+                foreach ($lock in $locks) {
+                    $allLocksBackup += [PSCustomObject]@{
+                        SubscriptionId   = $subId
+                        SubscriptionName = $subName
+                        ResourceId       = $resourceId
+                        ResourceName     = $resourceName
+                        LockId           = $lock.id
+                        LockName         = $lock.name
+                        LockLevel        = $lock.level
+                        LockNotes        = $lock.notes
+                    }
+                }
+            }
+
+            # Confirmation prompt (once, only in execute mode)
+            if (-not $DryRun -and -not $confirmedExecution) {
+                # Save backups first
+                $allDiagSettingsBackup | ConvertTo-Json -Depth 10 | Out-File -FilePath $backupDiagFile -Encoding UTF8
+                if ($allLocksBackup.Count -gt 0) {
+                    $allLocksBackup | ConvertTo-Json -Depth 10 | Out-File -FilePath $backupLocksFile -Encoding UTF8
+                }
+                Write-Log "Backups saved to: $OutputFolder" -Level SUCCESS
+
+                Write-Host ""
+                Write-Host "================================================================" -ForegroundColor Red
+                Write-Host "  WARNING: You are about to modify resources in production!" -ForegroundColor Red
+                Write-Host "  Diagnostic settings will be REMOVED." -ForegroundColor Red
+                Write-Host "  Resource locks will be temporarily removed and restored." -ForegroundColor Red
+                Write-Host "  Backup files saved to: $OutputFolder" -ForegroundColor Red
+                Write-Host "================================================================" -ForegroundColor Red
+                Write-Host ""
+
+                $confirm = Read-Host "Type YES-PROCEED to continue, or anything else to abort"
+                if ($confirm -ne "YES-PROCEED") {
+                    Write-Log "User aborted execution." -Level WARN
+                    throw "Execution aborted by user."
+                }
+                Write-Log "User confirmed execution."
+                $confirmedExecution = $true
+            }
+
+            # Step 1: Remove locks if present
+            $removedLocks = @()
+            if ($hasLocks) {
+                foreach ($lock in $locks) {
+                    $removed = Remove-LockTemporarily -Lock $lock
+                    if ($removed) { $removedLocks += $lock }
+                }
+            }
+
+            # Step 2: Remove diagnostic settings
+            foreach ($ds in $targetDiagSettings) {
+                $success = Remove-DiagSetting -ResourceId $resourceId -Name $ds.name
+
+                if ($success) { $totalDiagSettingsRemoved++ }
+
+                $reportEntries += [PSCustomObject]@{
+                    Timestamp        = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+                    SubscriptionId   = $subId
+                    SubscriptionName = $subName
+                    ResourceId       = $resourceId
+                    ResourceName     = $resourceName
+                    ResourceType     = $resourceType
+                    ResourceGroup    = $resourceGroup
+                    DiagSettingName  = $ds.name
+                    HadLocks         = $hasLocks
+                    LocksRemoved     = $removedLocks.Count
+                    Action           = if ($DryRun) { "DRY_RUN" } else { if ($success) { "REMOVED" } else { "FAILED" } }
+                }
+            }
+
+            # Step 3: Restore locks
+            if ($removedLocks.Count -gt 0 -and -not $SkipLockRestore) {
+                foreach ($lock in $removedLocks) {
+                    Restore-Lock -Lock $lock -ResourceId $resourceId
                 }
             }
         }
 
-        # Confirmation prompt (once, only in execute mode)
-        if (-not $DryRun -and -not $confirmedExecution) {
-            # Save backups first
-            $allDiagSettingsBackup | ConvertTo-Json -Depth 10 | Out-File -FilePath $backupDiagFile -Encoding UTF8
-            if ($allLocksBackup.Count -gt 0) {
-                $allLocksBackup | ConvertTo-Json -Depth 10 | Out-File -FilePath $backupLocksFile -Encoding UTF8
-            }
-            Write-Log "Backups saved to: $OutputFolder" -Level SUCCESS
-
-            Write-Host ""
-            Write-Host "================================================================" -ForegroundColor Red
-            Write-Host "  WARNING: You are about to modify resources in production!" -ForegroundColor Red
-            Write-Host "  Diagnostic settings will be REMOVED." -ForegroundColor Red
-            Write-Host "  Resource locks will be temporarily removed and restored." -ForegroundColor Red
-            Write-Host "  Backup files saved to: $OutputFolder" -ForegroundColor Red
-            Write-Host "================================================================" -ForegroundColor Red
-            Write-Host ""
-
-            $confirm = Read-Host "Type YES-PROCEED to continue, or anything else to abort"
-            if ($confirm -ne "YES-PROCEED") {
-                Write-Log "User aborted execution." -Level WARN
-                throw "Execution aborted by user."
-            }
-            Write-Log "User confirmed execution."
-            $confirmedExecution = $true
-        }
-
-        # Step 1: Remove locks if present
-        $removedLocks = @()
-        if ($hasLocks) {
-            foreach ($lock in $locks) {
-                $removed = Remove-LockTemporarily -Lock $lock
-                if ($removed) { $removedLocks += $lock }
-            }
-        }
-
-        # Step 2: Remove diagnostic settings
-        foreach ($ds in $targetDiagSettings) {
-            $success = Remove-DiagSetting -ResourceId $resourceId -Name $ds.name
-
-            if ($success) { $totalDiagSettingsRemoved++ }
-
-            $reportEntries += [PSCustomObject]@{
-                Timestamp        = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
-                SubscriptionId   = $subId
-                SubscriptionName = $subName
-                ResourceId       = $resourceId
-                ResourceName     = $resourceName
-                ResourceType     = $resourceType
-                ResourceGroup    = $resourceGroup
-                DiagSettingName  = $ds.name
-                HadLocks         = $hasLocks
-                LocksRemoved     = $removedLocks.Count
-                Action           = if ($DryRun) { "DRY_RUN" } else { if ($success) { "REMOVED" } else { "FAILED" } }
-            }
-        }
-
-        # Step 3: Restore locks
-        if ($removedLocks.Count -gt 0 -and -not $SkipLockRestore) {
-            foreach ($lock in $removedLocks) {
-                Restore-Lock -Lock $lock -ResourceId $resourceId
-            }
-        }
-
         Write-Log "[$processedCount/$totalResources] DONE: $resourceName"
+
+        # Step 4: For Storage Accounts, also process child services (blob, file, queue, table)
+        if ($resourceType -eq "Microsoft.Storage/storageAccounts") {
+            $childServices = @("blobServices/default", "fileServices/default", "queueServices/default", "tableServices/default")
+            foreach ($childSvc in $childServices) {
+                $childResourceId = "$resourceId/$childSvc"
+                $childTypeName = ($childSvc -split '/')[0]
+
+                $childDiagSettings = Get-DiagSettings -ResourceId $childResourceId
+                if (-not $childDiagSettings -or $childDiagSettings.Count -eq 0) { continue }
+
+                # Filter by target workspace if specified
+                if ($targetLower) {
+                    $childTargetSettings = @()
+                    foreach ($ds in $childDiagSettings) {
+                        if (-not ($ds.PSObject.Properties.Name -contains 'workspaceId')) { continue }
+                        $wsId = $ds.workspaceId
+                        if ($wsId -and ($wsId.ToLower() -eq $targetLower -or $wsId.ToLower().Contains($targetLower))) {
+                            $childTargetSettings += $ds
+                        }
+                    }
+                } else {
+                    $childTargetSettings = $childDiagSettings
+                }
+
+                if ($childTargetSettings.Count -eq 0) { continue }
+
+                $totalDiagSettingsFound += $childTargetSettings.Count
+                Write-Log "[$processedCount/$totalResources] Found $($childTargetSettings.Count) diagnostic setting(s) on child: $resourceName/$childTypeName"
+
+                # Backup child diagnostic settings
+                foreach ($ds in $childTargetSettings) {
+                    $allDiagSettingsBackup += [PSCustomObject]@{
+                        SubscriptionId   = $subId
+                        SubscriptionName = $subName
+                        ResourceId       = $childResourceId
+                        ResourceName     = "$resourceName/$childTypeName"
+                        ResourceType     = "Microsoft.Storage/storageAccounts/$childSvc"
+                        ResourceGroup    = $resourceGroup
+                        DiagSettingName  = $ds.name
+                        WorkspaceId      = $ds.workspaceId
+                        FullSettingJson   = ($ds | ConvertTo-Json -Depth 10 -Compress)
+                    }
+                }
+
+                # Remove child diagnostic settings
+                foreach ($ds in $childTargetSettings) {
+                    $success = Remove-DiagSetting -ResourceId $childResourceId -Name $ds.name
+
+                    if ($success) { $totalDiagSettingsRemoved++ }
+
+                    $reportEntries += [PSCustomObject]@{
+                        Timestamp        = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+                        SubscriptionId   = $subId
+                        SubscriptionName = $subName
+                        ResourceId       = $childResourceId
+                        ResourceName     = "$resourceName/$childTypeName"
+                        ResourceType     = "Microsoft.Storage/storageAccounts/$childSvc"
+                        ResourceGroup    = $resourceGroup
+                        DiagSettingName  = $ds.name
+                        HadLocks         = $false
+                        LocksRemoved     = 0
+                        Action           = if ($DryRun) { "DRY_RUN" } else { if ($success) { "REMOVED" } else { "FAILED" } }
+                    }
+                }
+
+                Write-Log "[$processedCount/$totalResources] DONE child: $resourceName/$childTypeName" -Level SUCCESS
+            }
+        }
     }
 
     # ============================================================================

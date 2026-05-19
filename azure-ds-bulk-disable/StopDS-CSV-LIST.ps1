@@ -251,28 +251,66 @@ try {
             $diagSettings = Get-DiagSettings -ResourceId $resourceId
 
             if (-not $diagSettings -or $diagSettings.Count -eq 0) {
-                continue
+                # For storage accounts, still check child resources even if parent has no diag settings
+                if ($resource.type -ne "Microsoft.Storage/storageAccounts") {
+                    continue
+                }
             }
 
             # Filter to settings targeting our workspace
-            foreach ($ds in $diagSettings) {
-                if (-not ($ds.PSObject.Properties.Name -contains 'workspaceId')) { continue }
-                $wsId = $ds.workspaceId
-                Write-Log "[DEBUG] DiagSetting '$($ds.name)' workspaceId = '$wsId' | Comparing to target = '$targetLower'"
-                if ($wsId -and ($wsId.ToLower() -eq $targetLower -or $wsId.ToLower().Contains($targetLower))) {
-                    $totalDiagSettingsFound++
-                    $resourceGroup = Get-ResourceGroupFromId -ResourceId $resourceId
+            if ($diagSettings -and $diagSettings.Count -gt 0) {
+                foreach ($ds in $diagSettings) {
+                    if (-not ($ds.PSObject.Properties.Name -contains 'workspaceId')) { continue }
+                    $wsId = $ds.workspaceId
+                    Write-Log "[DEBUG] DiagSetting '$($ds.name)' workspaceId = '$wsId' | Comparing to target = '$targetLower'"
+                    if ($wsId -and ($wsId.ToLower() -eq $targetLower -or $wsId.ToLower().Contains($targetLower))) {
+                        $totalDiagSettingsFound++
+                        $resourceGroup = Get-ResourceGroupFromId -ResourceId $resourceId
 
-                    $csvEntries += [PSCustomObject]@{
-                        "Resource Name"    = $resource.name
-                        "Resource ID"      = $resourceId
-                        "Resource Type"    = $resource.type
-                        "Resource Group"   = $resourceGroup
-                        "Subscription ID"  = $subId
-                        "Subscription Name" = $subName
+                        $csvEntries += [PSCustomObject]@{
+                            "Resource Name"    = $resource.name
+                            "Resource ID"      = $resourceId
+                            "Resource Type"    = $resource.type
+                            "Resource Group"   = $resourceGroup
+                            "Subscription ID"  = $subId
+                            "Subscription Name" = $subName
+                        }
+
+                        Write-Log "MATCH: $($resource.name) ($($resource.type)) in RG: $resourceGroup" -Level SUCCESS
                     }
+                }
+            }
 
-                    Write-Log "MATCH: $($resource.name) ($($resource.type)) in RG: $resourceGroup" -Level SUCCESS
+            # Storage accounts: also check child services (blob, file, queue, table)
+            if ($resource.type -eq "Microsoft.Storage/storageAccounts") {
+                $childServices = @("blobServices/default", "fileServices/default", "queueServices/default", "tableServices/default")
+                foreach ($childSvc in $childServices) {
+                    $childResourceId = "$resourceId/$childSvc"
+                    $childDiagSettings = Get-DiagSettings -ResourceId $childResourceId
+
+                    if (-not $childDiagSettings -or $childDiagSettings.Count -eq 0) { continue }
+
+                    foreach ($ds in $childDiagSettings) {
+                        if (-not ($ds.PSObject.Properties.Name -contains 'workspaceId')) { continue }
+                        $wsId = $ds.workspaceId
+                        $childTypeName = ($childSvc -split '/')[0]  # e.g. blobServices
+                        Write-Log "[DEBUG] Storage child '$childTypeName' DiagSetting '$($ds.name)' workspaceId = '$wsId'"
+                        if ($wsId -and ($wsId.ToLower() -eq $targetLower -or $wsId.ToLower().Contains($targetLower))) {
+                            $totalDiagSettingsFound++
+                            $resourceGroup = Get-ResourceGroupFromId -ResourceId $resourceId
+
+                            $csvEntries += [PSCustomObject]@{
+                                "Resource Name"    = "$($resource.name)/$childTypeName"
+                                "Resource ID"      = $childResourceId
+                                "Resource Type"    = "Microsoft.Storage/storageAccounts/$childSvc"
+                                "Resource Group"   = $resourceGroup
+                                "Subscription ID"  = $subId
+                                "Subscription Name" = $subName
+                            }
+
+                            Write-Log "MATCH: $($resource.name)/$childTypeName (Storage child) in RG: $resourceGroup" -Level SUCCESS
+                        }
+                    }
                 }
             }
         }
