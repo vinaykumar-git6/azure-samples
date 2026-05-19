@@ -256,6 +256,7 @@ try {
 
             # Filter to settings targeting our workspace
             foreach ($ds in $diagSettings) {
+                if (-not ($ds.PSObject.Properties.Name -contains 'workspaceId')) { continue }
                 $wsId = $ds.workspaceId
                 Write-Log "[DEBUG] DiagSetting '$($ds.name)' workspaceId = '$wsId' | Comparing to target = '$targetLower'"
                 if ($wsId -and ($wsId.ToLower() -eq $targetLower -or $wsId.ToLower().Contains($targetLower))) {
