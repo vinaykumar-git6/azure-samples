@@ -504,6 +504,13 @@ try {
                 $childResourceId = "$resourceId/$childSvc"
                 $childTypeName = ($childSvc -split '/')[0]
 
+                # Skip if this child resource is already in the CSV (will be processed as its own row)
+                $alreadyInCsv = $csvData | Where-Object { $_.$resourceIdColumn -and $_.$resourceIdColumn.ToLower() -eq $childResourceId.ToLower() }
+                if ($alreadyInCsv) {
+                    Write-Log "[$processedCount/$totalResources] Skipping child $childTypeName - already listed in CSV as separate row"
+                    continue
+                }
+
                 $childDiagSettings = Get-DiagSettings -ResourceId $childResourceId
                 if (-not $childDiagSettings -or $childDiagSettings.Count -eq 0) { continue }
 
@@ -541,6 +548,16 @@ try {
                     }
                 }
 
+                # Remove locks on parent (needed for child resource modifications)
+                $childLocks = Get-ResourceLocks -ResourceId $resourceId
+                $childRemovedLocks = @()
+                if ($childLocks -and $childLocks.Count -gt 0) {
+                    foreach ($lock in $childLocks) {
+                        $removed = Remove-LockTemporarily -Lock $lock
+                        if ($removed) { $childRemovedLocks += $lock }
+                    }
+                }
+
                 # Remove child diagnostic settings
                 foreach ($ds in $childTargetSettings) {
                     $success = Remove-DiagSetting -ResourceId $childResourceId -Name $ds.name
@@ -556,9 +573,16 @@ try {
                         ResourceType     = "Microsoft.Storage/storageAccounts/$childSvc"
                         ResourceGroup    = $resourceGroup
                         DiagSettingName  = $ds.name
-                        HadLocks         = $false
-                        LocksRemoved     = 0
+                        HadLocks         = ($childRemovedLocks.Count -gt 0)
+                        LocksRemoved     = $childRemovedLocks.Count
                         Action           = if ($DryRun) { "DRY_RUN" } else { if ($success) { "REMOVED" } else { "FAILED" } }
+                    }
+                }
+
+                # Restore locks on parent
+                if ($childRemovedLocks.Count -gt 0 -and -not $SkipLockRestore) {
+                    foreach ($lock in $childRemovedLocks) {
+                        Restore-Lock -Lock $lock -ResourceId $resourceId
                     }
                 }
 
