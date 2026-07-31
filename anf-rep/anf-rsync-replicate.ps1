@@ -63,7 +63,8 @@ $DST_RELAY_SSH_KEY   = "$HOME\.ssh\id_rsa.pub"
 $SRC_MOUNT_DIR         = "/mnt/anf-src"
 $DST_MOUNT_DIR         = "/mnt/anf-dst"
 $RSYNC_LOG             = "/var/log/anf-rsync.log"
-$RSYNC_BANDWIDTH_LIMIT = 0         # KB/s; 0 = unlimited
+$RSYNC_BANDWIDTH_LIMIT = 0         # KB/s total across all jobs; 0 = unlimited
+$RSYNC_PARALLEL_JOBS   = 8         # number of concurrent rsync workers (parallelism)
 
 # =============================================================================
 # ── HELPERS ───────────────────────────────────────────────────────────────────
@@ -309,16 +310,53 @@ function Invoke-Sync {
     # chmod 777 so rsync receiver (running as azureuser via SSH) can write into the NFS mount
     Dst-Cmd "mkdir -p $DST_MOUNT_DIR; mountpoint -q $DST_MOUNT_DIR && umount -lf $DST_MOUNT_DIR || true; mount -t nfs -o rw,hard,rsize=65536,wsize=65536,vers=3,tcp ${DST_ANF_MOUNT_IP}:/${DST_ANF_VOLUME} $DST_MOUNT_DIR && chmod 777 $DST_MOUNT_DIR && echo 'Germany destination mounted OK'"
 
-    # ── Step 4: rsync from snapshot (consistent point-in-time) ──────────────
-    Log "Starting rsync: UAE snapshot → Germany..."
+    # ── Step 4: PARALLEL rsync from snapshot (consistent point-in-time) ─────
+    # rsync itself is single-threaded (1 CPU + 1 TCP stream). To use the WAN
+    # link fully we partition the tree by top-level entry and run N rsync
+    # workers concurrently via 'xargs -P', then do one fast reconcile pass that
+    # handles root-level files and --delete across the whole tree.
+    Log "Starting PARALLEL rsync ($RSYNC_PARALLEL_JOBS jobs): UAE snapshot → Germany..."
     $snapshotPath = "${SRC_MOUNT_DIR}/.snapshot/${snapshotName}/"
-    $rsyncOpts    = "-avz --delete --exclude='.snapshot' --stats --log-file=${RSYNC_LOG}"
+    $dstPrivateIP = $script:DST_RELAY_PRIVATE_IP
+    $dstDest      = "${DST_RELAY_ADMIN}@${dstPrivateIP}:${DST_MOUNT_DIR}/"
+
+    # Note: --bwlimit is per-rsync-process, so divide the total budget by job count.
+    $rsyncOpts = "-az --delete --exclude=.snapshot --stats"
     if ($RSYNC_BANDWIDTH_LIMIT -gt 0) {
-        $rsyncOpts += " --bwlimit=$RSYNC_BANDWIDTH_LIMIT"
+        $perJobBw  = [math]::Max(1, [int]($RSYNC_BANDWIDTH_LIMIT / $RSYNC_PARALLEL_JOBS))
+        $rsyncOpts += " --bwlimit=$perJobBw"
     }
 
-    $dstPrivateIP = $script:DST_RELAY_PRIVATE_IP
-    Src-Cmd "set -e; echo '[rsync] Started at '`$(date -u) | tee $RSYNC_LOG; rsync $rsyncOpts --rsync-path 'sudo rsync' -e 'ssh -i /root/.ssh/id_rsa -o StrictHostKeyChecking=no' $snapshotPath ${DST_RELAY_ADMIN}@${dstPrivateIP}:${DST_MOUNT_DIR}/ | tee -a $RSYNC_LOG; echo '[rsync] Completed at '`$(date -u) | tee -a $RSYNC_LOG"
+    # Single-quoted here-string => no PowerShell interpolation; inject values via .Replace.
+    $syncScript = @'
+set -e
+export RSYNC_RSH="ssh -i /root/.ssh/id_rsa -o StrictHostKeyChecking=no"
+export RP="sudo rsync"
+export OPTS="__OPTS__"
+export DST_DEST="__DST_DEST__"
+JOBS=__JOBS__
+SNAP="__SNAP__"
+LOG="__LOG__"
+echo "[rsync] Started at $(date -u) — $JOBS parallel jobs" | tee "$LOG"
+cd "$SNAP"
+# One rsync per top-level entry, up to $JOBS at a time. Each dir job recurses
+# and applies --delete within its own subtree.
+find . -mindepth 1 -maxdepth 1 -print0 \
+  | xargs -0 -P "$JOBS" -I{} sh -c 'rsync $OPTS --rsync-path "$RP" "$1" "$DST_DEST"' _ {} 2>&1 | tee -a "$LOG"
+# Reconcile pass: catches root-level files and deletions that per-entry jobs
+# can't see. Fast — data is already present, so only metadata/deletes move.
+echo "[rsync] Reconcile pass (root files + deletions)..." | tee -a "$LOG"
+rsync $OPTS --rsync-path "$RP" "$SNAP" "$DST_DEST" 2>&1 | tee -a "$LOG"
+echo "[rsync] Completed at $(date -u)" | tee -a "$LOG"
+'@
+    $syncScript = $syncScript.
+        Replace('__OPTS__',     $rsyncOpts).
+        Replace('__DST_DEST__', $dstDest).
+        Replace('__JOBS__',     "$RSYNC_PARALLEL_JOBS").
+        Replace('__SNAP__',     $snapshotPath).
+        Replace('__LOG__',      $RSYNC_LOG)
+
+    Src-Cmd $syncScript
     Log "rsync completed"
 
     # ── Step 5: Validate file count ──────────────────────────────────────────
